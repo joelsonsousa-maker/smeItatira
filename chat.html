@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat | SME Itatira</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+
+    <link rel="stylesheet" href="CSS/reset.css">
+    <link rel="stylesheet" href="CSS/nav.css">
+    <link rel="stylesheet" href="CSS/pages.css">
+    <link rel="stylesheet" href="CSS/footer.css">
+
+    <link rel="shortcut icon" href="IMG/logotipo-sme.png" type="image/x-icon">
+</head>
+
+<body>
+    <header class="main-header">
+        <nav class="main-menu">
+            <a href="index.html" class="logo-link">
+                <img src="IMG/logo-sme.png" alt="Logotipo SME Itatira" class="image-logo">
+            </a>
+
+            <div class="mobile-menu">
+                <div class="line1"></div>
+                <div class="line2"></div>
+                <div class="line3"></div>
+            </div>
+
+            <ul class="nav-list">
+                <li><a href="index.html" class="link-nav">Início</a></li>
+                <li><a href="history.html" class="link-nav">História</a></li>
+                <li><a href="departaments.html" class="link-nav">Departamentos</a></li>
+                <li><a href="programs.html" class="link-nav">Programas</a></li>
+                <li><a href="school_units.html" class="link-nav">Unidades Escolares</a></li>
+                <li><a href="council.html" class="link-nav">Conselhos</a></li>
+                <li><a href="chat.html" class="link-nav active">Chat</a></li>
+                <li><a href="login.html" class="link-nav">Login</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <section class="page-header">
+            <h1>Chat da SME</h1>
+            <p>Envie e receba mensagens. Usuários conversam com o administrador, e o admin vê todas as conversas.</p>
+        </section>
+
+        <div class="page-container">
+            <div class="chat-card" id="chat-root"></div>
+        </div>
+    </main>
+
+    <style>
+        .chat-card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 16px; padding: 22px; }
+        .chat-toolbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 16px; }
+        .chat-title { font-size: 1.05rem; font-weight: 700; }
+        .chat-note { color: var(--color-secondary); max-width: 100%; }
+        .chat-panel { display: flex; gap: 18px; margin-top: 20px; }
+        .chat-panel-left { width: 260px; min-width: 230px; border-right: 1px solid var(--color-border); padding-right: 16px; }
+        .chat-panel-right { flex: 1; display: flex; flex-direction: column; }
+        .chat-card-user { padding: 14px 12px; border-radius: 12px; background: #f8fbff; border: 1px solid #d9e5f2; margin-bottom: 10px; cursor: pointer; }
+        .chat-card-user.active { background: #003366; color: #fff; }
+        .chat-list { max-height: 420px; overflow:auto; display:flex; flex-direction:column; gap:11px; padding-right:4px; }
+        .chat-message { padding: 12px 14px; border-radius: 12px; background: #f3f6fb; border: 1px solid #e5eef8; }
+        .chat-message.admin { background: #e9f5ff; border-color: #bcdff9; }
+        .chat-message .meta { font-size: 0.82rem; color: #5f6d7c; margin-bottom: 8px; }
+        .chat-form { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+        .chat-form textarea { flex: 1; min-height: 88px; border-radius: 12px; border: 1px solid var(--color-border); padding: 12px; resize: vertical; font-family: inherit; font-size: 0.95rem; }
+        .chat-form button { min-width: 140px; border-radius: 12px; border: none; color: #fff; background: #003366; padding: 12px 18px; cursor: pointer; }
+        .chat-empty { padding: 28px 18px; text-align:center; color: #556a82; border-radius: 12px; background:#f8fbff; border:1px dashed #cfdce8; }
+        .chat-user-info { margin-bottom: 10px; padding: 12px 14px; border: 1px solid var(--color-border); border-radius: 12px; background: #fff; }
+        .chat-user-info strong { display: inline-block; margin-right: 4px; }
+        .chat-action { display: inline-flex; align-items:center; justify-content:center; gap:6px; color:#fff; background:#0073c8; border:none; padding:10px 16px; border-radius:12px; cursor:pointer; }
+        @media (max-width: 980px) {
+            .chat-panel { flex-direction: column; }
+            .chat-panel-left { width: 100%; border-right: none; padding-right: 0; border-bottom: 1px solid var(--color-border); padding-bottom: 16px; }
+        }
+    </style>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        (function () {
+            const ROOT = document.getElementById('chat-root');
+            const SUPABASE_URL = 'https://hkxvrltwzrrbrdxqhsdn.supabase.co';
+            const SUPABASE_KEY = 'sb_publishable_nsvBZFvTH9Yg3asCJA59nA_67hIX8dg';
+            const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+            let messages = [];
+            let selectedConversation = null;
+
+            function getCurrentUser() {
+                try {
+                    return JSON.parse(localStorage.getItem('sme_user') || 'null');
+                } catch (error) {
+                    return null;
+                }
+            }
+
+            function formatTime(value) {
+                return new Date(value).toLocaleString('pt-BR', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+            }
+
+            async function loadMessages() {
+                const { data, error } = await client
+                    .from('mensagens')
+                    .select('*')
+                    .order('criado_em', { ascending: true });
+
+                if (error) {
+                    console.error('Erro ao carregar mensagens:', error);
+                    return;
+                }
+
+                messages = data || [];
+                render();
+            }
+
+            function setupRealtime() {
+                client
+                    .channel('public:mensagens')
+                    .on('postgres_changes', { event: '*', schema: 'public', table: 'mensagens' }, () => {
+                        loadMessages();
+                    })
+                    .subscribe();
+            }
+
+            function render() {
+                const user = getCurrentUser();
+                ROOT.innerHTML = '';
+
+                const toolbar = document.createElement('div');
+                toolbar.className = 'chat-toolbar';
+                toolbar.innerHTML = `
+                    <div class="chat-title">Chat SME</div>
+                    <div class="chat-note">${user ? (user.isAdmin ? 'Painel administrativo — responda a todas as conversas.' : 'Envie sua mensagem e aguarde a resposta do administrador.') : 'Faça login para enviar mensagens.'}</div>
+                `;
+                ROOT.appendChild(toolbar);
+
+                if (!user) {
+                    const empty = document.createElement('div');
+                    empty.className = 'chat-empty';
+                    empty.innerHTML = 'Você não está conectado. <a href="login.html" class="chat-action" style="text-decoration:none;">Entrar</a>';
+                    ROOT.appendChild(empty);
+                    return;
+                }
+
+                if (user.isAdmin) {
+                    renderAdmin(user);
+                } else {
+                    renderUser(user);
+                }
+            }
+
+            function renderAdmin(user) {
+                const conversations = {};
+                messages.forEach(message => {
+                    if (message.conversa_id !== 'admin') {
+                        conversations[message.conversa_id] = message.usuario_nome;
+                    }
+                });
+
+                const container = document.createElement('div');
+                container.className = 'chat-panel';
+
+                const sidebar = document.createElement('div');
+                sidebar.className = 'chat-panel-left';
+                sidebar.innerHTML = '<div class="chat-user-info"><strong>Atendimentos</strong><br>Selecione um usuário para responder.</div>';
+
+                const userList = document.createElement('div');
+                const emails = Object.keys(conversations);
+                emails.forEach(email => {
+                    const item = document.createElement('div');
+                    item.className = 'chat-card-user' + (selectedConversation === email ? ' active' : '');
+                    item.textContent = conversations[email] || email;
+                    item.addEventListener('click', () => {
+                        selectedConversation = email;
+                        render();
+                    });
+                    userList.appendChild(item);
+                });
+
+                if (!emails.length) {
+                    const empty = document.createElement('div');
+                    empty.className = 'chat-empty';
+                    empty.textContent = 'Ainda não há mensagens de usuários.';
+                    userList.appendChild(empty);
+                }
+
+                sidebar.appendChild(userList);
+                container.appendChild(sidebar);
+
+                const content = document.createElement('div');
+                content.className = 'chat-panel-right';
+
+                if (!selectedConversation) {
+                    const empty = document.createElement('div');
+                    empty.className = 'chat-empty';
+                    empty.textContent = 'Selecione um usuário à esquerda para visualizar a conversa.';
+                    content.appendChild(empty);
+                } else {
+                    const conversationMessages = messages.filter(msg => msg.conversa_id === selectedConversation);
+
+                    const header = document.createElement('div');
+                    header.className = 'chat-user-info';
+                    header.innerHTML = `<strong>Conversa com:</strong> ${conversations[selectedConversation] || selectedConversation}`;
+                    content.appendChild(header);
+
+                    if (!conversationMessages.length) {
+                        const empty = document.createElement('div');
+                        empty.className = 'chat-empty';
+                        empty.textContent = 'Esta conversa ainda não possui mensagens.';
+                        content.appendChild(empty);
+                    } else {
+                        const list = document.createElement('div');
+                        list.className = 'chat-list';
+                        conversationMessages.forEach(msg => {
+                            const bubble = document.createElement('div');
+                            bubble.className = 'chat-message ' + (msg.usuario_id === 'admin' ? 'admin' : '');
+                            bubble.innerHTML = `<div class="meta">${msg.usuario_nome} • ${formatTime(msg.criado_em)}</div><div>${msg.texto}</div>`;
+                            list.appendChild(bubble);
+                        });
+                        content.appendChild(list);
+                    }
+
+                    const form = document.createElement('div');
+                    form.className = 'chat-form';
+                    const textarea = document.createElement('textarea');
+                    textarea.placeholder = 'Escreva sua resposta...';
+                    const button = document.createElement('button');
+                    button.type = 'button';
+                    button.textContent = 'Responder';
+                    button.addEventListener('click', async () => {
+                        const text = textarea.value.trim();
+                        if (!text) return;
+                        button.disabled = true;
+                        await client.from('mensagens').insert([{
+                            usuario_id: 'admin',
+                            usuario_nome: user.name,
+                            conversa_id: selectedConversation,
+                            texto: text
+                        }]);
+                        textarea.value = '';
+                        button.disabled = false;
+                        loadMessages();
+                    });
+                    form.appendChild(textarea);
+                    form.appendChild(button);
+                    content.appendChild(form);
+                }
+
+                container.appendChild(content);
+                ROOT.appendChild(container);
+            }
+
+            function renderUser(user) {
+                const myEmail = user.email;
+                const conversationMessages = messages.filter(msg => msg.conversa_id === myEmail);
+
+                if (!conversationMessages.length) {
+                    const empty = document.createElement('div');
+                    empty.className = 'chat-empty';
+                    empty.textContent = 'Você ainda não enviou nenhuma mensagem. Use o campo abaixo para falar com o administrador.';
+                    ROOT.appendChild(empty);
+                } else {
+                    const list = document.createElement('div');
+                    list.className = 'chat-list';
+                    conversationMessages.forEach(msg => {
+                        const bubble = document.createElement('div');
+                        bubble.className = 'chat-message ' + (msg.usuario_id === 'admin' ? 'admin' : '');
+                        bubble.innerHTML = `<div class="meta">${msg.usuario_nome} • ${formatTime(msg.criado_em)}</div><div>${msg.texto}</div>`;
+                        list.appendChild(bubble);
+                    });
+                    ROOT.appendChild(list);
+                }
+
+                const form = document.createElement('div');
+                form.className = 'chat-form';
+                const textarea = document.createElement('textarea');
+                textarea.placeholder = 'Escreva sua mensagem para a SME...';
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.textContent = 'Enviar';
+                button.addEventListener('click', async () => {
+                    const text = textarea.value.trim();
+                    if (!text) return;
+                    button.disabled = true;
+                    await client.from('mensagens').insert([{
+                        usuario_id: myEmail,
+                        usuario_nome: user.name,
+                        conversa_id: myEmail,
+                        texto: text
+                    }]);
+                    textarea.value = '';
+                    button.disabled = false;
+                    loadMessages();
+                });
+                form.appendChild(textarea);
+                form.appendChild(button);
+                ROOT.appendChild(form);
+            }
+
+            loadMessages();
+            setupRealtime();
+        })();
+    </script>
+    <footer class="main-footer">
+        <div class="footer-grid">
+            <div class="footer-info">
+                <img src="IMG/logo-sme-mono.png" alt="SME Mono" class="footer-logo" onerror="this.style.display='none'">
+                <p><strong>Secretaria Municipal de Educação</strong></p>
+                <p>Rua Antônio Alves Guerra, S/N<br>Itatira-CE</p>
+                <p>CNPJ: 06.086.082/0001-15</p>
+            </div>
+            <div class="footer-contact">
+                <h3>Contatos</h3>
+                <p><span class="material-symbols-outlined">call</span> (88) 98230-1166</p>
+                <p><span class="material-symbols-outlined">mail</span> educ@educ.itatira.ce.gov.br</p>
+                <p><span class="material-symbols-outlined">schedule</span> Seg a Sex, 8h - 16h</p>
+            </div>
+            <div class="footer-links">
+                <h3>Acesso Rápido</h3>
+                <a href="#">FAQ / Ajuda</a>
+                <a href="privacity.html">Política de Privacidade</a>
+                <div class="social-links">
+                    <a href="https://www.facebook.com/smeitatira" target="_blank" title="Facebook"><img src="IMG/facebook.svg" alt="FB"></a>
+                    <a href="https://wa.me/5588982301166" target="_blank" title="WhatsApp"><img src="IMG/whatsapp.svg" alt="WA"></a>
+                    <a href="https://www.instagram.com/smeitatira/" target="_blank" title="Instagram"><img src="IMG/instagram.svg" alt="IG"></a>
+                </div>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>© 2024 Secretaria Municipal de Educação de Itatira. Todos os direitos reservados.</p>
+            <p class="dev-credits">Desenvolvido por <a href="https://github.com/vinisantoszx" target="_blank">Vinícius Santos</a></p>
+        </div>
+    </footer>
+    <script src="JS/mobile-navbar.js"></script>
+</body>
+
+</html>

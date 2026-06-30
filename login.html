@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login | SME Itatira</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+
+    <link rel="stylesheet" href="CSS/reset.css">
+    <link rel="stylesheet" href="CSS/nav.css">
+    <link rel="stylesheet" href="CSS/pages.css">
+    <link rel="stylesheet" href="CSS/footer.css">
+
+    <link rel="shortcut icon" href="IMG/logotipo-sme.png" type="image/x-icon">
+</head>
+
+<body>
+    <header class="main-header">
+        <nav class="main-menu">
+            <a href="index.html" class="logo-link">
+                <img src="IMG/logo-sme.png" alt="Logotipo SME Itatira" class="image-logo">
+            </a>
+
+            <div class="mobile-menu">
+                <div class="line1"></div>
+                <div class="line2"></div>
+                <div class="line3"></div>
+            </div>
+
+            <ul class="nav-list">
+                <li><a href="index.html" class="link-nav">Início</a></li>
+                <li><a href="history.html" class="link-nav">História</a></li>
+                <li><a href="departaments.html" class="link-nav">Departamentos</a></li>
+                <li><a href="programs.html" class="link-nav">Programas</a></li>
+                <li><a href="school_units.html" class="link-nav">Unidades Escolares</a></li>
+                <li><a href="council.html" class="link-nav">Conselhos</a></li>
+                <li><a href="login.html" class="link-nav active">Login</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <section class="page-header">
+            <h1>Área de Login</h1>
+            <p>Entre como visitante ou use o código de administrador para acessar o perfil especial.</p>
+        </section>
+
+        <div class="page-container">
+            <div class="login-card">
+                <h2>Entrar na sua conta</h2>
+                <p class="page-text">Este é um login simples para qualquer pessoa. Se você tiver o código de administrador,
+                    seu perfil será identificado como admin.</p>
+                <form id="login-form" class="login-form">
+                    <div class="login-field">
+                        <label for="full-name">Nome completo</label>
+                        <input type="text" id="full-name" placeholder="Digite seu nome" required>
+                    </div>
+                    <div class="login-field">
+                        <label for="email">E-mail</label>
+                        <input type="email" id="email" placeholder="seu@exemplo.com" required>
+                        <div class="input-error" id="email-error" aria-live="polite"></div>
+                    </div>
+                    <div id="admin-code-toggle" class="admin-code-toggle">
+                        <button type="button" id="show-admin-code" class="admin-code-toggle-btn">Se você é administrador, clique aqui</button>
+                    </div>
+                    <div id="admin-code-field" class="login-field admin-code-field hidden">
+                        <label for="admin-code">Código de administrador (opcional)</label>
+                        <input type="text" id="admin-code" placeholder="Digite o código para admin">
+                    </div>
+                    <button type="submit" class="btn-primary">Entrar</button>
+                </form>
+
+                <div id="login-message" class="login-message">Preencha os campos e clique em Entrar.</div>
+                <div id="user-details" class="login-details"></div>
+
+                <p class="login-note">Se você não for administrador, deixe o campo de código em branco e clique em Entrar.
+                    Isso permite acessar o site como visitante.</p>
+            </div>
+        </div>
+    </main>
+
+    <footer class="main-footer">
+        <div class="footer-grid">
+            <div class="footer-info">
+                <img src="IMG/logo-sme-mono.png" alt="SME Mono" class="footer-logo" onerror="this.style.display='none'">
+                <p><strong>Secretaria Municipal de Educação</strong></p>
+                <p>Rua Antônio Alves Guerra, S/N<br>Itatira-CE</p>
+                <p>CNPJ: 06.086.082/0001-15</p>
+            </div>
+            <div class="footer-contact">
+                <h3>Contatos</h3>
+                <p><span class="material-symbols-outlined">call</span> (88) 98230-1166</p>
+                <p><span class="material-symbols-outlined">mail</span> educ@educ.itatira.ce.gov.br</p>
+                <p><span class="material-symbols-outlined">schedule</span> Seg a Sex, 8h - 16h</p>
+            </div>
+            <div class="footer-links">
+                <h3>Acesso Rápido</h3>
+                <a href="#">FAQ / Ajuda</a>
+                <a href="privacity.html">Política de Privacidade</a>
+                <div class="social-links">
+                    <a href="https://www.facebook.com/smeitatira" target="_blank" title="Facebook"><img
+                            src="IMG/facebook.svg" alt="FB"></a>
+                    <a href="https://wa.me/5588982301166" target="_blank" title="WhatsApp"><img src="IMG/whatsapp.svg"
+                            alt="WA"></a>
+                    <a href="https://www.instagram.com/smeitatira/" target="_blank" title="Instagram"><img
+                            src="IMG/instagram.svg" alt="IG"></a>
+                </div>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>© 2024 Secretaria Municipal de Educação de Itatira. Todos os direitos reservados.</p>
+            <p class="dev-credits">Desenvolvido por <a href="https://github.com/vinisantoszx" target="_blank">Vinícius
+                    Santos</a></p>
+        </div>
+    </footer>
+    
+    <script>
+        const loginForm = document.getElementById('login-form');
+        const messageBox = document.getElementById('login-message');
+        const emailInput = document.getElementById('email');
+        const emailError = document.getElementById('email-error');
+        const userDetailsBox = document.getElementById('user-details');
+        const showAdminCodeBtn = document.getElementById('show-admin-code');
+        const adminCodeField = document.getElementById('admin-code-field');
+        const adminCodeInput = document.getElementById('admin-code');
+
+        function isValidEmail(email) {
+            return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+        }
+
+        function validateEmailField() {
+            const value = emailInput.value.trim();
+            if (!value || !isValidEmail(value)) {
+                emailError.textContent = 'Digite um e-mail válido';
+                emailInput.classList.add('input-invalid');
+                return false;
+            }
+            emailError.textContent = '';
+            emailInput.classList.remove('input-invalid');
+            return true;
+        }
+
+        function getStoredUser() {
+            try {
+                const raw = localStorage.getItem('sme_user');
+                return raw ? JSON.parse(raw) : null;
+            } catch (e) {
+                return null;
+            }
+        }
+
+        function saveUser(user) {
+            try {
+                localStorage.setItem('sme_user', JSON.stringify(user));
+            } catch (e) {
+                console.warn('Não foi possível salvar o usuário localmente:', e);
+            }
+        }
+
+        function renderUserDetails(user) {
+            if (!user) {
+                userDetailsBox.textContent = '';
+                return;
+            }
+            userDetailsBox.innerHTML = `
+                <div><strong>Usuário:</strong> ${user.name}</div>
+                <div><strong>E-mail:</strong> ${user.email}</div>
+                <div><strong>Perfil:</strong> ${user.isAdmin ? 'Administrador' : 'Visitante'}</div>
+            `;
+        }
+
+        function updateLoginMessage(text, status) {
+            messageBox.textContent = text;
+            messageBox.className = `login-message ${status || ''}`.trim();
+        }
+
+        async function validateAdminCode(adminCode) {
+            if (!adminCode) {
+                return { valid: false, skipped: true };
+            }
+
+            try {
+                const response = await fetch('http://localhost:3000/api/validate-admin-code', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ adminCode })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Falha ao validar o código');
+                }
+
+                const data = await response.json();
+                return { valid: Boolean(data.valid), skipped: false, error: false };
+            } catch (error) {
+                console.error('Erro ao validar código de administrador:', error);
+                return { valid: false, skipped: false, error: true };
+            }
+        }
+
+        showAdminCodeBtn.addEventListener('click', function () {
+            adminCodeField.classList.remove('hidden');
+            adminCodeField.classList.add('visible');
+            adminCodeInput.focus();
+            showAdminCodeBtn.textContent = 'Código de administrador ativado';
+        });
+
+        emailInput.addEventListener('input', validateEmailField);
+        emailInput.addEventListener('blur', validateEmailField);
+
+        loginForm.addEventListener('submit', async function (event) {
+            event.preventDefault();
+
+            const fullName = document.getElementById('full-name').value.trim();
+            const email = document.getElementById('email').value.trim();
+            const adminCode = document.getElementById('admin-code').value.trim();
+
+            if (!fullName) {
+                updateLoginMessage('Digite seu nome para continuar.', 'error');
+                return;
+            }
+
+            if (!validateEmailField()) {
+                updateLoginMessage('Digite um e-mail válido para continuar.', 'error');
+                emailInput.focus();
+                return;
+            }
+
+            const validation = await validateAdminCode(adminCode);
+
+            if (adminCode && validation.error) {
+                updateLoginMessage('Não foi possível validar o código no momento. Tente novamente.', 'error');
+                return;
+            }
+
+            if (adminCode && !validation.valid) {
+                updateLoginMessage('Código de administrador inválido. Deixe em branco para entrar como visitante.', 'error');
+                return;
+            }
+
+            const user = {
+                name: fullName,
+                email: email,
+                isAdmin: Boolean(adminCode && validation.valid)
+            };
+
+            saveUser(user);
+            renderUserDetails(user);
+            updateLoginMessage(`Bem-vindo ${user.name}! Agora você está conectado como ${user.isAdmin ? 'Administrador' : 'Visitante'}.`, 'success');
+            window.location.href = 'index.html';
+        });
+
+        document.addEventListener('DOMContentLoaded', function () {
+            const currentUser = getStoredUser();
+            if (currentUser) {
+                renderUserDetails(currentUser);
+                updateLoginMessage('Você já está conectado. Clique em qualquer página para continuar.', 'success');
+            }
+        });
+    </script>
+    <style>
+        .admin-code-toggle {
+            margin-bottom: 0.8rem;
+        }
+
+        .admin-code-toggle-btn {
+            background: none;
+            border: none;
+            color: #2563eb;
+            cursor: pointer;
+            font-size: 0.95rem;
+            padding: 0;
+            text-decoration: underline;
+        }
+
+        .admin-code-toggle-btn:hover {
+            color: #1d4ed8;
+        }
+
+        .admin-code-field {
+            transition: all 0.25s ease;
+        }
+
+        .admin-code-field.hidden {
+            display: none;
+        }
+
+        .admin-code-field.visible {
+            display: block;
+        }
+    </style>
+    <script src="JS/mobile-navbar.js"></script>
+</body>
+
+</html>

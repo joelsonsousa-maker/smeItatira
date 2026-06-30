@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="google-site-verification" content="3dWKlfNbPiuqpcj65sYS8XivjdaB1W28TM6QigvGJqM" />
+    <title>SME - Secretaria Municipal de Educação | Itatira</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+
+    <link rel="stylesheet" href="CSS/reset.css">
+    <link rel="stylesheet" href="CSS/nav.css">
+    <link rel="stylesheet" href="CSS/home.css">
+    <link rel="stylesheet" href="CSS/footer.css">
+
+    <link rel="shortcut icon" href="IMG/logotipo-sme.png" type="image/x-icon">
+</head>
+
+<body>
+    <header class="main-header">
+        <nav class="main-menu">
+            <a href="index.html" class="logo-link">
+                <img src="IMG/logo-sme.png" alt="Logotipo SME Itatira" class="image-logo">
+            </a>
+
+            <div class="mobile-menu">
+                <div class="line1"></div>
+                <div class="line2"></div>
+                <div class="line3"></div>
+            </div>
+
+            <ul class="nav-list">
+                <li><a href="index.html" class="link-nav active">Início</a></li>
+                <li><a href="history.html" class="link-nav">História</a></li>
+                <li><a href="departaments.html" class="link-nav">Departamentos</a></li>
+                <li><a href="programs.html" class="link-nav">Programas</a></li>
+                <li><a href="school_units.html" class="link-nav">Unidades Escolares</a></li>
+                <li><a href="council.html" class="link-nav">Conselhos</a></li>
+                <li><a href="login.html" class="link-nav">Login</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <section class="hero-section carossel">
+            <div class="carossel-inner">
+                <img src="IMG/home-1.png" alt="SME Itatira Destaque 1">
+                <img src="IMG/home-2.png" alt="SME Itatira Destaque 2">
+                <img src="IMG/home-3.png" alt="SME Itatira Destaque 3">
+            </div>
+            <button class="carossel-control prev" onclick="moveSlide(-1)">❮</button>
+            <button class="carossel-control next" onclick="moveSlide(1)">❯</button>
+            <div class="carossel-indicators"></div>
+        </section>
+
+        <section class="services-section">
+            <div class="section-header">
+                <h2>Serviços Online</h2>
+                <p>Acesso rápido aos principais portais da Secretaria</p>
+            </div>
+
+            <div class="cards-grid">
+                <div class="modern-card">
+                    <span class="material-symbols-outlined card-icon">receipt_long</span>
+                    <h3>Contracheque</h3>
+                    <p>Aceda ao seu contracheque online de forma rápida, segura e transparente.</p>
+                    <a href="http://www.sstransparenciamunicipal.net/ssfolha/sisfo_login.php?entcod=257"
+                        class="btn-primary" target="_blank">Acessar Portal</a>
+                </div>
+
+                <div class="modern-card">
+                    <span class="material-symbols-outlined card-icon">support_agent</span>
+                    <h3>Ouvidoria</h3>
+                    <p>Precisa de ajuda? Fale connosco através dos nossos canais oficiais de atendimento.</p>
+                    <a href="https://mail.google.com/mail/u/0/#inbox?compose=new" class="btn-outline"
+                        target="_blank">Entrar em Contato</a>
+                </div>
+            </div>
+        </section>
+
+        <section class="info-section">
+            <div class="info-container">
+                <div class="info-text">
+                    <h2>Para uma educação cada vez melhor!</h2>
+                    <p>Temos a responsabilidade de elaborar o Plano Municipal de Educação, estabelecendo as bases e
+                        diretrizes da educação municipal, conforme a legislação vigente.</p>
+                    <p>Comprometemo-nos a desenvolver normas pedagógicas específicas para o ensino fundamental, especial
+                        e infantil, sempre alinhadas com os programas gerais estabelecidos para o sistema municipal.</p>
+                </div>
+                <div class="info-map">
+                    <iframe
+                        src="https://maps.google.com/maps?q=Secretaria+de+Educacao+Itatira&t=&z=15&ie=UTF8&iwloc=&output=embed"
+                        allowfullscreen="" loading="lazy"></iframe>
+                </div>
+            </div>
+        </section>
+
+        <section class="board-section">
+            <div class="section-header">
+                <h2>Quadro Informativo</h2>
+            </div>
+
+            <div class="board-grid">
+                <div class="birthday-widget">
+                    <div class="widget-header">
+                        <span class="material-symbols-outlined">cake</span>
+                        <h3>Aniversariantes do Mês</h3>
+                    </div>
+                    <ul class="birthday-list">
+                        <li><span class="date">01/12</span> <span class="name">João Silva</span></li>
+                        <li><span class="date">05/12</span> <span class="name">Maria Oliveira</span></li>
+                        <li><span class="date">10/12</span> <span class="name">Pedro Santos</span></li>
+                        <li><span class="date">15/12</span> <span class="name">Ana Costa</span></li>
+                        <li><span class="date">20/12</span> <span class="name">Carlos Lima</span></li>
+                    </ul>
+                </div>
+
+                <div class="gallery-widget carrossel-container">
+                    <div class="carrossel-gestao">
+                        <img src="IMG/gestao1.jpg" alt="Gestão 1">
+                        <img src="IMG/gestao2.jpg" alt="Gestão 2">
+                        <img src="IMG/gestao3.jpg" alt="Gestão 3">
+                    </div>
+                    <button class="nav-btn prev" onclick="moveGestaoSlide(-1)">❮</button>
+                    <button class="nav-btn next" onclick="moveGestaoSlide(1)">❯</button>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="main-footer">
+        <div class="footer-grid">
+            <div class="footer-info">
+                <img src="IMG/logo-sme-mono.png" alt="SME Mono" class="footer-logo" onerror="this.style.display='none'">
+                <p><strong>Secretaria Municipal de Educação</strong></p>
+                <p>Rua Antônio Alves Guerra, S/N<br>Itatira-CE</p>
+                <p>CNPJ: 06.086.082/0001-15</p>
+            </div>
+            <div class="footer-contact">
+                <h3>Contatos</h3>
+                <p><span class="material-symbols-outlined">call</span> (88) 98230-1166</p>
+                <p><span class="material-symbols-outlined">mail</span> educ@educ.itatira.ce.gov.br</p>
+                <p><span class="material-symbols-outlined">schedule</span> Seg a Sex, 8h - 16h</p>
+            </div>
+            <div class="footer-links">
+                <h3>Acesso Rápido</h3>
+                <a href="#">FAQ / Ajuda</a>
+                <a href="privacity.html">Política de Privacidade</a>
+                <div class="social-links">
+                    <a href="https://www.facebook.com/smeitatira" target="_blank" title="Facebook"><img
+                            src="IMG/facebook.svg" alt="FB"></a>
+                    <a href="https://wa.me/5588982301166" target="_blank" title="WhatsApp"><img src="IMG/whatsapp.svg"
+                            alt="WA"></a>
+                    <a href="https://www.instagram.com/smeitatira/" target="_blank" title="Instagram"><img
+                            src="IMG/instagram.svg" alt="IG"></a>
+                </div>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>© 2024 Secretaria Municipal de Educação de Itatira. Todos os direitos reservados.</p>
+            <p class="dev-credits">Desenvolvido por <a href="https://github.com/vinisantoszx" target="_blank">Vinícius
+                    Santos</a></p>
+        </div>
+    </footer>
+
+    <script src="JS/mobile-navbar.js"></script>
+    <script src="JS/image-carrosel.js"></script>
+    <script src="JS/carrosel-gestao.js"></script>
+</body>
+
+</html>

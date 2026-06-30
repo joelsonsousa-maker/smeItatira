@@ -1,0 +1,55 @@
+/* VARIÁVEIS DE DESIGN SYSTEM */
+:root {
+    --color-primary: #0f172a;    /* Azul/Ardósia muito escuro */
+    --color-secondary: #2563eb;  /* Azul vibrante principal */
+    --color-secondary-hover: #1d4ed8;
+    --color-accent: #f59e0b;     /* Laranja/Âmbar para detalhes */
+    --color-bg: #f8fafc;         /* Fundo da página (cinza quase branco) */
+    --color-surface: #ffffff;    /* Fundo de cartões */
+    --color-text: #334155;
+    --color-text-light: #64748b;
+    --color-border: #e2e8f0;
+    
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    
+    --radius-md: 12px;
+    --radius-lg: 20px;
+    --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* RESET MODERNO */
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html {
+    scroll-behavior: smooth;
+}
+
+body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background-color: var(--color-bg);
+    color: var(--color-text);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+}
+
+img, picture, video, canvas, svg {
+    display: block;
+    max-width: 100%;
+}
+
+a {
+    text-decoration: none;
+    color: inherit;
+}
+
+button, input, select, textarea {
+    font-family: inherit;
+    border: none;
+    outline: none;
+}

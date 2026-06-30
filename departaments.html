@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Departamentos | SME Itatira</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+
+    <link rel="stylesheet" href="CSS/reset.css">
+    <link rel="stylesheet" href="CSS/nav.css">
+    <link rel="stylesheet" href="CSS/pages.css">
+    <link rel="stylesheet" href="CSS/footer.css">
+
+    <link rel="shortcut icon" href="IMG/logotipo-sme.png" type="image/x-icon">
+</head>
+
+<body>
+    <header class="main-header">
+        <nav class="main-menu">
+            <a href="index.html" class="logo-link"><img src="IMG/logo-sme.png" alt="Logotipo SME"
+                    class="image-logo"></a>
+            <div class="mobile-menu">
+                <div class="line1"></div>
+                <div class="line2"></div>
+                <div class="line3"></div>
+            </div>
+            <ul class="nav-list">
+                <li><a href="index.html" class="link-nav">Início</a></li>
+                <li><a href="history.html" class="link-nav">História</a></li>
+                <li><a href="departaments.html" class="link-nav active">Departamentos</a></li>
+                <li><a href="programs.html" class="link-nav">Programas</a></li>
+                <li><a href="school_units.html" class="link-nav">Unidades Escolares</a></li>
+                <li><a href="council.html" class="link-nav">Conselhos</a></li>
+                <li><a href="login.html" class="link-nav">Login</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <div class="page-header">
+            <h1>Nossos Departamentos</h1>
+        </div>
+
+        <section class="page-container">
+            <div class="full-box">
+                <div class="full-width-card">
+                    <div class="card-header" onclick="toggleCard(this)">
+                        <h2>Secretaria Executiva</h2>
+                        <span class="material-symbols-outlined">expand_more</span>
+                    </div>
+                    <div class="card-body" id="cardBody">
+                        <h2>Função:</h2>
+                        <p>A Secretaria Executiva em uma estrutura governamental, como a de uma Secretaria de Educação
+                            Municipal, tem a função de apoiar o secretário ou secretária da pasta em tarefas
+                            administrativas e operacionais.</p>
+
+                        <div id="bold">
+                            <p><strong>* Coordenação Administrativa:</strong> Gerenciar processos internos, como
+                                organização de documentos, agendas, reuniões, além de apoiar na execução das políticas e
+                                programas definidos pela secretaria.</p>
+                            <p><strong>* Articulação entre Departamentos:</strong> Facilitar a comunicação e a
+                                articulação entre os diversos setores e departamentos da secretaria, assegurando que os
+                                fluxos de trabalho estejam alinhados e coordenados.</p>
+                            <p><strong>* Apoio Estratégico:</strong> Auxiliar na implementação das diretrizes e metas da
+                                secretaria, trabalhando junto à equipe técnica para garantir que as políticas
+                                educacionais sejam executadas conforme o planejamento.</p>
+                            <p><strong>* Supervisão de Projetos e Programas:</strong> Monitorar e garantir que os
+                                projetos e programas educacionais estejam sendo executados conforme o cronograma e os
+                                recursos disponíveis.</p>
+                            <p><strong>* Representação Institucional:</strong> Em alguns casos, a Secretaria Executiva
+                                pode representar a Secretaria em eventos, reuniões e encontros, atuando como um elo
+                                entre a gestão e outras entidades.</p>
+                        </div>
+
+                        <h2>Responsável por setor:</h2>
+                        <p>Gemma Galgane Soares Macambira</p>
+                    </div>
+                </div>
+
+                <div class="full-width-card">
+                    <div class="card-header" onclick="toggleCard(this)">
+                        <h2>Assessoria de Educação Básica</h2>
+                        <span class="material-symbols-outlined">expand_more</span>
+                    </div>
+                    <div class="card-body" id="cardBody">
+                        <h2>Função:</h2>
+                        <p>A Assessoria de Educação Básica tem como função principal dar suporte técnico e pedagógico à
+                            gestão da educação básica no município ou estado. Ela atua como uma equipe de consultoria
+                            dentro da secretaria de educação.</p>
+
+                        <div id="bold">
+                            <p><strong>* Orientação e suporte pedagógico:</strong> Aconselhar diretores, coordenadores
+                                pedagógicos e professores sobre práticas pedagógicas eficazes e alinhadas com as
+                                diretrizes educacionais.</p>
+                            <p><strong>* Desenvolvimento e monitoramento de currículos:</strong> Ajudar a criar, revisar
+                                e garantir a aplicação de currículos que atendam às normas nacionais, como a BNCC.</p>
+                            <p><strong>* Capacitação profissional:</strong> Oferecer oportunidades de formação e
+                                atualização para professores e gestores escolares.</p>
+                            <p><strong>* Supervisão e avaliação:</strong> Monitorar o desempenho escolar e o progresso
+                                dos alunos.</p>
+                            <p><strong>* Implementação de programas e projetos:</strong> Acompanhar a execução de
+                                programas educacionais específicos.</p>
+                        </div>
+
+                        <h2>Responsável por setor:</h2>
+                        <p>André Belisário do Nascimento</p>
+                    </div>
+                </div>
+
+                <div class="full-width-card">
+                    <div class="card-header" onclick="toggleCard(this)">
+                        <h2>Departamento Administrativo e Financeiro</h2>
+                        <span class="material-symbols-outlined">expand_more</span>
+                    </div>
+                    <div class="card-body" id="cardBody">
+                        <h2>Função:</h2>
+                        <p>Reúne responsabilidades essenciais para a gestão eficiente de recursos humanos, materiais e
+                            financeiros, com o objetivo de garantir o pleno funcionamento da rede educacional.</p>
+
+                        <div id="bold">
+                            <p><strong>* Gestão de Recursos Humanos:</strong> Gerencia a contratação, controle de
+                                salários e benefícios, e capacitação dos servidores.</p>
+                            <p><strong>* Gestão Orçamentária:</strong> Planeja e executa o orçamento da secretaria.</p>
+                            <p><strong>* Processos de Compras e Licitações:</strong> Organiza e supervisiona as
+                                licitações para aquisição de materiais e serviços.</p>
+                            <p><strong>* Logística e Distribuição:</strong> Gerencia o estoque e distribuição de
+                                materiais didáticos.</p>
+                            <p><strong>* Infraestrutura Escolar:</strong> Coordena reparos e melhorias nas instalações
+                                escolares.</p>
+                            <p><strong>* Suporte Administrativo:</strong> Oferece apoio às escolas em questões
+                                burocráticas.</p>
+                            <p><strong>* Prestação de Contas:</strong> Elabora relatórios financeiros para órgãos de
+                                controle.</p>
+                        </div>
+
+                        <h2>Subdivisão</h2>
+                        <p>Núcleo de Coordenação do PDDE - Sérgio Murilo Alexandre Bié da Silva</p>
+
+                        <h2>Responsável por setor:</h2>
+                        <p>Sílvia Maria Alexandre Bié da Silva</p>
+                    </div>
+                </div>
+
+                <div class="full-width-card">
+                    <div class="card-header" onclick="toggleCard(this)">
+                        <h2>Departamento Administrativo</h2>
+                        <span class="material-symbols-outlined">expand_more</span>
+                    </div>
+                    <div class="card-body" id="cardBody">
+                        <h2>Função:</h2>
+                        <p>O Departamento Administrativo garante a gestão eficiente das operações administrativas e
+                            suporte às atividades educacionais.</p>
+
+                        <div id="bold">
+                            <p><strong>* Gestão de Recursos Humanos:</strong> Responsável pela contratação e capacitação
+                                dos servidores da educação municipal.</p>
+                            <p><strong>* Planejamento de Eventos:</strong> Coordena eventos educacionais e capacitações.
+                            </p>
+                            <p><strong>* Controle de Materiais:</strong> Gerencia o estoque para as escolas.</p>
+                            <p><strong>* Apoio à Gestão Escolar:</strong> Oferece suporte administrativo para
+                                matrículas, transferências e documentação.</p>
+                            <p><strong>* Elaboração de Políticas Internas:</strong> Desenvolve procedimentos que
+                                otimizam a eficiência da secretaria.</p>
+                            <p><strong>* Comunicação:</strong> Facilita a comunicação interna entre as escolas e a
+                                secretaria.</p>
+                            <p><strong>* Gestão de Convênios:</strong> Coordena parcerias com outras instituições.</p>
+                        </div>
+
+                        <h2>Responsável por setor:</h2>
+                        <p>Maria Valdete Cavalcante Paiva</p>
+                    </div>
+                </div>
+
+                <div class="full-width-card">
+                    <div class="card-header" onclick="toggleCard(this)">
+                        <h2>Departamento de Ensino Infantil</h2>
+                        <span class="material-symbols-outlined">expand_more</span>
+                    </div>
+                    <div class="card-body" id="cardBody">
+                        <h2>Função:</h2>
+                        <p>Responsável por planejar, implementar e supervisionar as políticas e programas educacionais
+                            voltados para a educação infantil.</p>
+
+                        <div id="bold">
+                            <p><strong>* Políticas e Planejamento:</strong> Desenvolve políticas e elabora o currículo
+                                alinhado à BNCC.</p>
+                            <p><strong>* Formação e Supervisão:</strong> Capacita educadores e acompanha as instituições
+                                de ensino.</p>
+                            <p><strong>* Inclusão e Avaliação:</strong> Promove a inclusão de todas as crianças e avalia
+                                o desenvolvimento infantil.</p>
+                            <p><strong>* Integração Familiar:</strong> Fomenta a participação das famílias no processo
+                                educativo.</p>
+                        </div>
+
+                        <h2>Responsável por setor:</h2>
+                        <p>Luciana Sousa</p>
+                    </div>
+                </div>
+
+                <div class="full-width-card">
+                    <div class="card-header" onclick="toggleCard(this)">
+                        <h2>Departamento de Ensino Fundamental</h2>
+                        <span class="material-symbols-outlined">expand_more</span>
+                    </div>
+                    <div class="card-body" id="cardBody">
+                        <h2>Função:</h2>
+                        <p>Coordenar e supervisionar as políticas e programas educacionais especificamente voltados para
+                            o ensino fundamental.</p>
+
+                        <div id="bold">
+                            <p><strong>* Políticas e Currículo:</strong> Implementa políticas e coordena o currículo do
+                                ensino fundamental (BNCC).</p>
+                            <p><strong>* Formação Continuada:</strong> Capacita professores para aprimorar metodologias
+                                de ensino.</p>
+                            <p><strong>* Acompanhamento:</strong> Avalia escolas, promove a inclusão e o desempenho
+                                escolar.</p>
+                            <p><strong>* Comunidade:</strong> Integra pais e comunidade no processo educativo.</p>
+                        </div>
+
+                        <h2>Subdivisão:</h2>
+                        <p>Núcleo de Assessoramento Técnico e Acompanhamento dos Gestores Escolares - Antônia Miranice
+                            Martins Mateus</p>
+
+                        <h2>Responsável por setor:</h2>
+                        <p>Gemma Galgane Soares Macambira</p>
+                    </div>
+                </div>
+
+                <div class="full-width-card">
+                    <div class="card-header" onclick="toggleCard(this)">
+                        <h2>Departamento de Educação Básica</h2>
+                        <span class="material-symbols-outlined">expand_more</span>
+                    </div>
+                    <div class="card-body" id="cardBody">
+                        <h2>Função:</h2>
+                        <p>Planejar, implementar e supervisionar as políticas e programas educacionais voltados para a
+                            educação infantil e o ensino fundamental.</p>
+
+                        <div id="bold">
+                            <p><strong>* Elaboração Curricular:</strong> Desenvolve as bases educacionais alinhadas com
+                                as diretrizes estaduais e federais.</p>
+                            <p><strong>* Gestão e Inclusão:</strong> Promove a formação de educadores e estratégias de
+                                inclusão escolar.</p>
+                            <p><strong>* Programas Específicos:</strong> Gerencia alimentação escolar, transporte e
+                                atividades extracurriculares.</p>
+                        </div>
+
+                        <h2>Subdivisão:</h2>
+                        <p>Núcleo de Planejamento, Avaliação Técnica Pedagógica Escolar e Inspeção</p>
+
+                        <h2>Responsável por setor:</h2>
+                        <p>Maria do Socorro Alencar Paulo</p>
+                    </div>
+                </div>
+
+                <div class="full-width-card">
+                    <div class="card-header" onclick="toggleCard(this)">
+                        <h2>Departamento Pedagógico</h2>
+                        <span class="material-symbols-outlined">expand_more</span>
+                    </div>
+                    <div class="card-body" id="cardBody">
+                        <h2>Função:</h2>
+                        <p>Garantir a qualidade do ensino, apoiando escolas, professores e alunos no processo de
+                            ensino-aprendizagem.</p>
+
+                        <div id="bold">
+                            <p><strong>* Inovação e Currículos:</strong> Elabora diretrizes e apoia as escolas com
+                                práticas pedagógicas modernas.</p>
+                            <p><strong>* Formação de Professores:</strong> Organiza programas de aprimoramento
+                                profissional.</p>
+                            <p><strong>* Supervisão e Avaliação:</strong> Analisa resultados de avaliações educacionais
+                                e sugere melhorias.</p>
+                            <p><strong>* Educação Especial:</strong> Garante estratégias que favoreçam o desenvolvimento
+                                inclusivo.</p>
+                        </div>
+
+                        <h2>Subdivisão:</h2>
+                        <p>Núcleo Pedagógico de Educação Infantil - Luciana Sousa <br>
+                            Núcleo Pedagógico de Educação Fundamental - Gemma Galgane Soares Macambira <br>
+                            Núcleo de Ensino de Jovens e Adultos - Leandro Martins da Silva <br>
+                            Núcleo de Educação Especial - Francisca Eliete Aragão de Sousa</p>
+
+                        <h2>Responsável por setor:</h2>
+                        <p>Gemma Galgane Soares Macambira</p>
+                    </div>
+                </div>
+
+                <div class="full-width-card">
+                    <div class="card-header" onclick="toggleCard(this)">
+                        <h2>Departamento de Programas, Projetos e Administração</h2>
+                        <span class="material-symbols-outlined">expand_more</span>
+                    </div>
+                    <div class="card-body" id="cardBody">
+                        <h2>Função:</h2>
+                        <p>Essencial para garantir a implementação eficaz das políticas públicas educacionais e o
+                            funcionamento administrativo da secretaria.</p>
+
+                        <div id="bold">
+                            <p><strong>* Desenvolvimento de iniciativas:</strong> Planeja e organiza programas e
+                                projetos educacionais.</p>
+                            <p><strong>* Gerenciamento e logística:</strong> Administra os recursos financeiros e
+                                materiais dos programas, transporte escolar e alimentação.</p>
+                            <p><strong>* Monitoramento:</strong> Avalia o impacto das ações implementadas.</p>
+                        </div>
+
+                        <h2>Subdivisão:</h2>
+                        <p>Núcleo de Coordenação de Programas e Projetos - Francisco Jonas Ambrósio Araújo<br>
+                            Núcleo de Coordenação Pessoal, Informações e Estatísticas - Francisco Cesár Galdino de
+                            Oliveira<br>
+                            Núcleo de Coordenação da Alimentação Escolar - Francisca Vanesca Ferreira Nunes<br>
+                            Núcleo de Coordenação do Transporte Escolar - Adalrir Sales dos Santos<br>
+                            Núcleo de Material e Patrimônio - Sinara Nunes da Silva</p>
+
+                        <h2>Responsável por setor:</h2>
+                        <p>Antonio Inácio dos Santos</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="main-footer">
+        <div class="footer-grid">
+            <div class="footer-info">
+                <img src="IMG/logo-sme-mono.png" alt="SME Mono" class="footer-logo" onerror="this.style.display='none'">
+                <p><strong>Secretaria Municipal de Educação</strong></p>
+                <p>Rua Antônio Alves Guerra, S/N<br>Itatira-CE</p>
+                <p>CNPJ: 06.086.082/0001-15</p>
+            </div>
+            <div class="footer-contact">
+                <h3>Contatos</h3>
+                <p><span class="material-symbols-outlined">call</span> (88) 98230-1166</p>
+                <p><span class="material-symbols-outlined">mail</span> educ@educ.itatira.ce.gov.br</p>
+                <p><span class="material-symbols-outlined">schedule</span> Seg a Sex, 8h - 16h</p>
+            </div>
+            <div class="footer-links">
+                <h3>Acesso Rápido</h3>
+                <a href="#">FAQ / Ajuda</a>
+                <a href="privacity.html">Política de Privacidade</a>
+                <div class="social-links">
+                    <a href="https://www.facebook.com/smeitatira" target="_blank" title="Facebook"><img
+                            src="IMG/facebook.svg" alt="FB"></a>
+                    <a href="https://wa.me/5588982301166" target="_blank" title="WhatsApp"><img src="IMG/whatsapp.svg"
+                            alt="WA"></a>
+                    <a href="https://www.instagram.com/smeitatira/" target="_blank" title="Instagram"><img
+                            src="IMG/instagram.svg" alt="IG"></a>
+                </div>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>© 2024 Secretaria Municipal de Educação de Itatira. Todos os direitos reservados.</p>
+            <p class="dev-credits">Desenvolvido por <a href="https://github.com/vinisantoszx" target="_blank">Vinícius
+                    Santos</a></p>
+        </div>
+    </footer>
+
+    <script src="JS/mobile-navbar.js"></script>
+    <script src="JS/toggle-card.js"></script>
+</body>
+
+</html>
