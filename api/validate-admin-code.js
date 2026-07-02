@@ -1,20 +1,33 @@
-module.exports = (req, res) => {
-  // Cabeçalhos CORS para o ambiente Serverless da Vercel
+module.exports = async (req, res) => {
+  // Configuração manual de cabeçalhos CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
 
-  // Trata a requisição de pré-vôo (CORS)
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
 
-  // Garante que só aceita requisições POST
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Método não permitido' });
   }
 
-  // Pega a variável direto do painel da Vercel
+  // Captura e processa o corpo da requisição manualmente se ele vier como string/buffer
+  let body = req.body;
+  if (typeof body === 'string') {
+    try {
+      body = JSON.parse(body);
+    } catch (e) {
+      body = {};
+    }
+  } else if (Buffer.isBuffer(body)) {
+    try {
+      body = JSON.parse(body.toString());
+    } catch (e) {
+      body = {};
+    }
+  }
+
   const adminCode = process.env.ADMIN_CODE;
 
   if (!adminCode) {
@@ -24,8 +37,7 @@ module.exports = (req, res) => {
     });
   }
 
-  // Validação do código enviado
-  const providedCode = String(req.body?.adminCode || '').trim();
+  const providedCode = String(body?.adminCode || '').trim();
   const valid = providedCode === adminCode;
 
   return res.json({ valid: valid });
