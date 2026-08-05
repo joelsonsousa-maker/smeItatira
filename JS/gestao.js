@@ -86,6 +86,8 @@ function renderMembros(membros) {
     photo.onerror = () => {
       photo.src = getPlaceholderUrl(membro.nome);
     };
+    // Abre a imagem em lightbox quando clicada (funciona para imagens carregadas dinamicamente)
+    photo.addEventListener('click', () => openLightbox(photo.src, membro.nome || ''));
 
     const details = document.createElement('div');
     details.className = 'membro-details';
@@ -329,3 +331,58 @@ async function deleteStorageImage(imageUrl) {
 
   await client.storage.from(STORAGE_BUCKET).remove([path]);
 }
+
+/* ======================
+   Lightbox (Image Modal)
+   ======================
+*/
+function openLightbox(src, caption) {
+  const overlay = document.getElementById('lightbox-overlay');
+  const img = document.getElementById('lightbox-image');
+  const cap = document.getElementById('lightbox-caption');
+  if (!overlay || !img) return;
+
+  img.src = src || '';
+  img.alt = caption || 'Imagem do membro';
+  if (cap) {
+    cap.textContent = caption || '';
+    cap.setAttribute('aria-hidden', caption ? 'false' : 'true');
+  }
+
+  overlay.classList.remove('hidden');
+
+  // foco no botão de fechar para acessibilidade
+  const closeBtn = document.getElementById('lightbox-close');
+  closeBtn?.focus();
+}
+
+function closeLightbox() {
+  const overlay = document.getElementById('lightbox-overlay');
+  const img = document.getElementById('lightbox-image');
+  if (!overlay) return;
+  overlay.classList.add('hidden');
+  if (img) img.src = '';
+}
+
+// Handlers: fechar ao clicar fora da imagem, no botão ou ao pressionar ESC
+document.addEventListener('DOMContentLoaded', () => {
+  const overlay = document.getElementById('lightbox-overlay');
+  const closeBtn = document.getElementById('lightbox-close');
+
+  overlay?.addEventListener('click', (ev) => {
+    if (ev.target === overlay) {
+      closeLightbox();
+    }
+  });
+
+  closeBtn?.addEventListener('click', () => closeLightbox());
+
+  document.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape') {
+      const overlayEl = document.getElementById('lightbox-overlay');
+      if (overlayEl && !overlayEl.classList.contains('hidden')) {
+        closeLightbox();
+      }
+    }
+  });
+});
