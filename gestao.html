@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Política de Privacidade | SME Itatira</title>
+    <title>Gestão | SME Itatira</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -30,7 +30,7 @@
             <ul class="nav-list">
                 <li><a href="index.html" class="link-nav">Início</a></li>
                 <li><a href="history.html" class="link-nav">História</a></li>
-                <li><a href="gestao.html" class="link-nav">Gestão</a></li>
+                <li><a href="gestao.html" class="link-nav active">Gestão</a></li>
                 <li><a href="departaments.html" class="link-nav">Departamentos</a></li>
                 <li><a href="programs.html" class="link-nav">Programas</a></li>
                 <li><a href="school_units.html" class="link-nav">Unidades Escolares</a></li>
@@ -41,44 +41,62 @@
     </header>
 
     <main>
-        <div class="page-header">
-            <h1>Política de Privacidade</h1>
-            <p style="margin-top: 10px; opacity: 0.8;">Última atualização: 07/10/2024</p>
+        <section class="page-header">
+            <h1>Gestão</h1>
+            <p><h4>Aqui estão os gestores da Secretaria Municipal de Educação de Itatira, 
+                responsáveis por conduzir e promover a educação do nosso município.</h4></p>
+        </section>
+
+        <div class="page-container">
+            <div class="management-header">
+                <div class="management-description page-text">
+                    <p><h4>Secretaria Municipal de Educação de Itatira atua com compromisso, 
+                        planejamento e responsabilidade para fortalecer a educação e promover 
+                        um ensino de qualidade para todos.</h4></p>
+                </div>
+                <button id="open-add-button" class="btn-primary">
+                    <span class="material-symbols-outlined">add</span>
+                    Adicionar
+                </button>
+            </div>
+
+            <div id="gestao-message" class="login-message" aria-live="polite" hidden></div>
+            <div id="membros-list" class="membros-list"></div>
         </div>
 
-        <section class="page-container">
-            <div class="page-text">
-                <p>A Secretaria Municipal de Educação valoriza a privacidade dos utilizadores e compromete-se a proteger
-                    as informações pessoais recolhidas no nosso site. Esta Política de Privacidade descreve como
-                    recolhemos, usamos e protegemos as suas informações.</p>
-
-                <h2>1. Informações que Recolhemos</h2>
-                <p>Podemos recolher as seguintes informações quando visita o nosso site:<br>
-                    - Informações de identificação pessoal: nome, e-mail, telefone, morada.<br>
-                    - Informações de navegação: endereço IP, tipo de navegador, páginas visitadas.<br>
-                    - Cookies e tecnologias similares.</p>
-
-                <h2>2. Como Usamos as Suas Informações</h2>
-                <p>As informações recolhidas podem ser usadas para:<br>
-                    - Melhorar os nossos serviços e o funcionamento do site.<br>
-                    - Enviar atualizações sobre os nossos serviços.<br>
-                    - Responder a solicitações e dúvidas.</p>
-
-                <h2>3. Partilha de Informações</h2>
-                <p>Não vendemos nem trocamos as suas informações pessoais com terceiros. Podemos partilhá-las apenas
-                    para cumprir obrigações legais ou proteger direitos da Instituição.</p>
-
-                <h2>4. Segurança e Direitos</h2>
-                <p>Implementamos medidas de segurança adequadas para proteger os seus dados. Tem o direito de aceder,
-                    corrigir ou apagar as suas informações pessoais a qualquer momento.</p>
-
-                <h2>5. Contacto</h2>
-                <p>Se tiver dúvidas sobre esta Política, contacte-nos:<br>
-                    E-mail: educ@educ.itatira.ce.gov.br<br>
-                    Telefone: (88) 98188-2384<br>
-                    Morada: Rua Antônio Alves Guerra, S/N, Itatira-CE</p>
+        <div id="gestao-modal" class="modal-overlay hidden" role="dialog" aria-modal="true"
+            aria-labelledby="modal-title">
+            <div class="modal-card">
+                <div class="modal-header">
+                    <h2 id="modal-title">Adicionar Membro</h2>
+                    <button type="button" id="modal-close" class="modal-close" aria-label="Fechar formulário">&times;</button>
+                </div>
+                <form id="gestao-form" class="gestao-form">
+                    <input type="hidden" id="member-id" />
+                    <label class="login-field">
+                        <span>Nome completo</span>
+                        <input type="text" id="member-name" placeholder="Nome do membro" required>
+                    </label>
+                    <label class="login-field">
+                        <span>Função</span>
+                        <input type="text" id="member-role" placeholder="Ex: Coordenador, Professor" required>
+                    </label>
+                    <label class="login-field">
+                        <span>Biografia</span>
+                        <textarea id="member-info" rows="4" placeholder="Pequena biografia" required></textarea>
+                    </label>
+                    <label class="login-field file-upload">
+                        <span>Foto de perfil</span>
+                        <input type="file" id="member-image" accept="image/*">
+                        <small>Envie uma imagem para o perfil do membro. Caso não envie, será usado um placeholder.</small>
+                    </label>
+                    <div class="form-actions">
+                        <button type="button" id="cancel-button" class="btn-secondary">Cancelar</button>
+                        <button type="submit" id="save-member-button" class="btn-primary">Salvar</button>
+                    </div>
+                </form>
             </div>
-        </section>
+        </div>
     </main>
 
     <footer class="main-footer">
@@ -116,7 +134,9 @@
         </div>
     </footer>
 
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="JS/mobile-navbar.js"></script>
+    <script src="JS/gestao.js"></script>
 </body>
 
 </html>
