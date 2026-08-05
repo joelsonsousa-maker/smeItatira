@@ -101,11 +101,26 @@ function renderMembros(membros) {
 
     const bio = document.createElement('p');
     bio.className = 'member-bio';
-    bio.textContent = membro.informacoes || 'Biografia não informada.';
+    const fullBio = membro.informacoes || 'Biografia não informada.';
 
     details.appendChild(title);
     details.appendChild(role);
-    details.appendChild(bio);
+
+    if (fullBio && fullBio.length > 200) {
+      const shortText = fullBio.slice(0, 200).trim() + '...';
+      bio.textContent = shortText;
+      details.appendChild(bio);
+
+      const viewBtn = document.createElement('button');
+      viewBtn.type = 'button';
+      viewBtn.className = 'btn-view-bio';
+      viewBtn.textContent = 'Ver biografia';
+      viewBtn.addEventListener('click', () => openBioModal(membro.nome || 'Biografia', fullBio));
+      details.appendChild(viewBtn);
+    } else {
+      bio.textContent = fullBio;
+      details.appendChild(bio);
+    }
 
     card.appendChild(photo);
     card.appendChild(details);
@@ -364,10 +379,34 @@ function closeLightbox() {
   if (img) img.src = '';
 }
 
+/* Bio modal */
+function openBioModal(name, bioText) {
+  const overlay = document.getElementById('bio-modal');
+  const nameEl = document.getElementById('bio-modal-name');
+  const content = document.getElementById('bio-modal-content');
+  if (!overlay || !content) return;
+
+  nameEl && (nameEl.textContent = name || 'Biografia');
+  content.textContent = bioText || '';
+  overlay.classList.remove('hidden');
+  const closeBtn = document.getElementById('bio-modal-close');
+  closeBtn?.focus();
+}
+
+function closeBioModal() {
+  const overlay = document.getElementById('bio-modal');
+  const content = document.getElementById('bio-modal-content');
+  if (!overlay) return;
+  overlay.classList.add('hidden');
+  if (content) content.textContent = '';
+}
+
 // Handlers: fechar ao clicar fora da imagem, no botão ou ao pressionar ESC
 document.addEventListener('DOMContentLoaded', () => {
   const overlay = document.getElementById('lightbox-overlay');
   const closeBtn = document.getElementById('lightbox-close');
+  const bioOverlay = document.getElementById('bio-modal');
+  const bioClose = document.getElementById('bio-modal-close');
 
   overlay?.addEventListener('click', (ev) => {
     if (ev.target === overlay) {
@@ -377,11 +416,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
   closeBtn?.addEventListener('click', () => closeLightbox());
 
+  bioOverlay?.addEventListener('click', (ev) => {
+    if (ev.target === bioOverlay) {
+      closeBioModal();
+    }
+  });
+
+  bioClose?.addEventListener('click', () => closeBioModal());
+
   document.addEventListener('keydown', (ev) => {
     if (ev.key === 'Escape') {
       const overlayEl = document.getElementById('lightbox-overlay');
       if (overlayEl && !overlayEl.classList.contains('hidden')) {
         closeLightbox();
+      }
+      const bioEl = document.getElementById('bio-modal');
+      if (bioEl && !bioEl.classList.contains('hidden')) {
+        closeBioModal();
       }
     }
   });
