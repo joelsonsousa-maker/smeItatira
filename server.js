@@ -43,9 +43,9 @@ const {
 
 const inMemoryMessages = [];
 
-app.all('/api/validate-admin-code', validateAdminRoute);
+app.all('/validate-admin-code', validateAdminRoute);
 
-app.post('/api/auth/login', loginRateLimiter, async (req, res) => {
+app.post('/auth/login', loginRateLimiter, async (req, res) => {
   try {
     const { email = '', password = '', adminCode = '' } = req.body || {};
 
@@ -108,7 +108,7 @@ app.post('/api/auth/login', loginRateLimiter, async (req, res) => {
   }
 });
 
-app.post('/api/auth/signup', loginRateLimiter, async (req, res) => {
+app.post('/auth/signup', loginRateLimiter, async (req, res) => {
   try {
     const { nome = '', email = '', password = '', confirmPassword = '' } = req.body || {};
     const trimmedEmail = String(email || '').trim().toLowerCase();
@@ -256,7 +256,7 @@ app.get('/api/messages', authenticateUser, async (req, res) => {
   }
 });
 
-app.post('/api/messages', authenticateUser, messageRateLimiter, async (req, res) => {
+app.post('/messages', authenticateUser, messageRateLimiter, async (req, res) => {
   try {
     const text = String(req.body?.text || '').trim();
     
