@@ -376,8 +376,8 @@ app.post(['/api/messages', '/messages'], authenticateUser, messageRateLimiter, a
       return res.status(201).json({ ok: true, message: 'Mensagem enviada com sucesso.' });
     }
 
-    // Tenta inserir primeiro usando colunas em inglês
-    let { error } = await admin.from('messages').insert({
+    // Inserção usando exatamente as colunas existentes no seu Supabase
+    const { error } = await admin.from('messages').insert({
       user_id: req.user.id,
       user_name: req.user.name,
       conversation_id: conversationId,
@@ -385,21 +385,8 @@ app.post(['/api/messages', '/messages'], authenticateUser, messageRateLimiter, a
       created_at: createdAt
     });
 
-    // Se falhar (por exemplo, se as colunas no Supabase forem em português), tenta o formato em português
     if (error) {
-      console.warn('Tentativa 1 (inglês) falhou, tentando inserir no formato em português:', error.message);
-      const fallbackResult = await admin.from('messages').insert({
-        usuario_id: req.user.id,
-        usuario_nome: req.user.name,
-        conversa_id: conversationId,
-        texto: text,
-        criado_em: createdAt
-      });
-      error = fallbackResult.error;
-    }
-
-    if (error) {
-      console.error('Erro final ao inserir mensagem no Supabase:', error.message);
+      console.error('Erro ao inserir mensagem no Supabase:', error.message);
       return res.status(500).json({ ok: false, error: `Erro no banco de dados: ${error.message}` });
     }
 
