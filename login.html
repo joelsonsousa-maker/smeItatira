@@ -55,17 +55,17 @@
         <div class="page-container">
             <div class="login-card">
                 <h2>Entrar na sua conta</h2>
-                <p class="page-text">Este é um login simples para qualquer pessoa. Se você tiver o código de administrador,
-                    seu perfil será identificado como admin.</p>
+                <p class="page-text">Entre com seu e-mail e senha. Se você tiver o código de administrador,
+                    o backend irá confirmar seu perfil no Supabase antes de liberar acesso especial.</p>
                 <form id="login-form" class="login-form">
-                    <div class="login-field">
-                        <label for="full-name">Nome completo</label>
-                        <input type="text" id="full-name" placeholder="Digite seu nome" required>
-                    </div>
                     <div class="login-field">
                         <label for="email">E-mail</label>
                         <input type="email" id="email" placeholder="seu@exemplo.com" required>
                         <div class="input-error" id="email-error" aria-live="polite"></div>
+                    </div>
+                    <div class="login-field">
+                        <label for="password">Senha</label>
+                        <input type="password" id="password" placeholder="Digite sua senha" required>
                     </div>
                     <div id="admin-code-toggle" class="admin-code-toggle">
                         <button type="button" id="show-admin-code" class="admin-code-toggle-btn">Se você é administrador, clique aqui</button>
@@ -80,8 +80,9 @@
                 <div id="login-message" class="login-message">Preencha os campos e clique em Entrar.</div>
                 <div id="user-details" class="login-details"></div>
 
-                <p class="login-note">Se você não for administrador, deixe o campo de código em branco e clique em Entrar.
-                    Isso permite acessar o site como visitante.</p>
+                <p class="login-note">Se você não for administrador, deixe o campo de código em branco.
+                    O acesso administrativo só será liberado pelo backend quando o perfil estiver correto.</p>
+                <p class="login-note">Ainda não tem conta? <a href="signup.html">Criar conta</a></p>
             </div>
         </div>
     </main>
@@ -125,11 +126,15 @@
         const loginForm = document.getElementById('login-form');
         const messageBox = document.getElementById('login-message');
         const emailInput = document.getElementById('email');
+        const passwordInput = document.getElementById('password');
         const emailError = document.getElementById('email-error');
         const userDetailsBox = document.getElementById('user-details');
         const showAdminCodeBtn = document.getElementById('show-admin-code');
         const adminCodeField = document.getElementById('admin-code-field');
         const adminCodeInput = document.getElementById('admin-code');
+        const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+            ? 'http://localhost:3000'
+            : '';
 
         function isValidEmail(email) {
             return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -145,6 +150,10 @@
             emailError.textContent = '';
             emailInput.classList.remove('input-invalid');
             return true;
+        }
+
+        function getSearchParam(name) {
+            return new URLSearchParams(window.location.search).get(name);
         }
 
         function getStoredUser() {
@@ -164,6 +173,14 @@
             }
         }
 
+        function saveSession(token) {
+            try {
+                localStorage.setItem('sme_session_token', token);
+            } catch (e) {
+                console.warn('Não foi possível salvar o token da sessão:', e);
+            }
+        }
+
         function renderUserDetails(user) {
             if (!user) {
                 userDetailsBox.textContent = '';
@@ -176,32 +193,37 @@
             `;
         }
 
+        function showRegistrationSuccessMessage() {
+            if (getSearchParam('registered') === '1') {
+                updateLoginMessage('Conta criada com sucesso. Faça login para continuar.', 'success');
+                history.replaceState(null, '', window.location.pathname);
+            }
+        }
+
+        showRegistrationSuccessMessage();
+
         function updateLoginMessage(text, status) {
             messageBox.textContent = text;
             messageBox.className = `login-message ${status || ''}`.trim();
         }
 
-        async function validateAdminCode(adminCode) {
-            if (!adminCode) {
-                return { valid: false, skipped: true };
-            }
-
+        async function authenticateUser(payload) {
             try {
-                const response = await fetch('/api/validate-admin-code', {
+                const response = await fetch(`${API_BASE}/api/auth/login`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ adminCode })
+                    body: JSON.stringify(payload)
                 });
 
-                if (!response.ok) {
-                    throw new Error('Falha ao validar o código');
+                const data = await response.json();
+                if (!response.ok || !data.ok) {
+                    throw new Error(data.error || 'Falha ao autenticar usuário');
                 }
 
-                const data = await response.json();
-                return { valid: Boolean(data.valid), skipped: false, error: false };
+                return data;
             } catch (error) {
-                console.error('Erro ao validar código de administrador:', error);
-                return { valid: false, skipped: false, error: true };
+                console.error('Erro ao autenticar usuário:', error);
+                throw error;
             }
         }
 
@@ -218,14 +240,9 @@
         loginForm.addEventListener('submit', async function (event) {
             event.preventDefault();
 
-            const fullName = document.getElementById('full-name').value.trim();
             const email = document.getElementById('email').value.trim();
+            const password = passwordInput.value;
             const adminCode = document.getElementById('admin-code').value.trim();
-
-            if (!fullName) {
-                updateLoginMessage('Digite seu nome para continuar.', 'error');
-                return;
-            }
 
             if (!validateEmailField()) {
                 updateLoginMessage('Digite um e-mail válido para continuar.', 'error');
@@ -233,28 +250,34 @@
                 return;
             }
 
-            const validation = await validateAdminCode(adminCode);
-
-            if (adminCode && validation.error) {
-                updateLoginMessage('Não foi possível validar o código no momento. Tente novamente.', 'error');
+            if (!password) {
+                updateLoginMessage('Digite sua senha para continuar.', 'error');
+                passwordInput.focus();
                 return;
             }
 
-            if (adminCode && !validation.valid) {
-                updateLoginMessage('Código de administrador inválido. Deixe em branco para entrar como visitante.', 'error');
-                return;
+            try {
+                const result = await authenticateUser({
+                    email,
+                    password,
+                    adminCode
+                });
+
+                const user = {
+                    name: result.user.name,
+                    email: result.user.email,
+                    isAdmin: result.user.role === 'admin'
+                };
+
+                saveUser(user);
+                saveSession(result.token);
+                renderUserDetails(user);
+                updateLoginMessage(`Bem-vindo ${user.name}! Agora você está conectado como ${user.isAdmin ? 'Administrador' : 'Visitante'}.`, 'success');
+                window.location.href = 'index.html';
+            } catch (error) {
+                updateLoginMessage(error.message || 'Não foi possível entrar no momento. Tente novamente.', 'error');
             }
 
-            const user = {
-                name: fullName,
-                email: email,
-                isAdmin: Boolean(adminCode && validation.valid)
-            };
-
-            saveUser(user);
-            renderUserDetails(user);
-            updateLoginMessage(`Bem-vindo ${user.name}! Agora você está conectado como ${user.isAdmin ? 'Administrador' : 'Visitante'}.`, 'success');
-            window.location.href = 'index.html';
         });
 
         document.addEventListener('DOMContentLoaded', function () {

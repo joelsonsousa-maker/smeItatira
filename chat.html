@@ -84,13 +84,12 @@
         }
     </style>
 
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
         (function () {
             const ROOT = document.getElementById('chat-root');
-            const SUPABASE_URL = 'https://hkxvrltwzrrbrdxqhsdn.supabase.co';
-            const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhreHZybHR3enJyYnJkeHFoc2RuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIzMjgyNDksImV4cCI6MjA5NzkwNDI0OX0.yvlcNFTVqvU52darxGNqZ7w3vgm6sASz8rHcikNzrPI';
-            const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+            const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+                ? 'http://localhost:3000'
+                : '';
 
             let messages = [];
             let selectedConversation = null;
@@ -101,6 +100,11 @@
                 } catch (error) {
                     return null;
                 }
+            }
+
+            function getAuthHeaders() {
+                const token = localStorage.getItem('sme_session_token');
+                return token ? { Authorization: `Bearer ${token}` } : {};
             }
 
             function formatTime(value) {
@@ -114,27 +118,31 @@
             }
 
             async function loadMessages() {
-                const { data, error } = await client
-                    .from('mensagens')
-                    .select('*')
-                    .order('criado_em', { ascending: true });
+                try {
+                    const response = await fetch(`${API_BASE}/api/messages`, {
+                        headers: {
+                            ...getAuthHeaders(),
+                            'Content-Type': 'application/json'
+                        }
+                    });
 
-                if (error) {
+                    if (!response.ok) {
+                        throw new Error('Falha ao carregar mensagens');
+                    }
+
+                    const data = await response.json();
+                    messages = data || [];
+                    render();
+                } catch (error) {
                     console.error('Erro ao carregar mensagens:', error);
-                    return;
                 }
-
-                messages = data || [];
-                render();
             }
 
-            function setupRealtime() {
-                client
-                    .channel('public:mensagens')
-                    .on('postgres_changes', { event: '*', schema: 'public', table: 'mensagens' }, () => {
-                        loadMessages();
-                    })
-                    .subscribe();
+            function showNotice(container, text) {
+                const notice = document.createElement('div');
+                notice.className = 'chat-empty';
+                notice.textContent = text;
+                container.prepend(notice);
             }
 
             function render() {
@@ -166,7 +174,7 @@
 
             function renderAdmin(user) {
                 const conversations = {};
-                messages.forEach(message => {
+                messages.forEach((message) => {
                     if (message.conversa_id !== 'admin') {
                         conversations[message.conversa_id] = message.usuario_nome;
                     }
@@ -181,7 +189,7 @@
 
                 const userList = document.createElement('div');
                 const emails = Object.keys(conversations);
-                emails.forEach(email => {
+                emails.forEach((email) => {
                     const item = document.createElement('div');
                     item.className = 'chat-card-user' + (selectedConversation === email ? ' active' : '');
                     item.textContent = conversations[email] || email;
@@ -211,7 +219,7 @@
                     empty.textContent = 'Selecione um usuário à esquerda para visualizar a conversa.';
                     content.appendChild(empty);
                 } else {
-                    const conversationMessages = messages.filter(msg => msg.conversa_id === selectedConversation);
+                    const conversationMessages = messages.filter((msg) => msg.conversa_id === selectedConversation);
 
                     const header = document.createElement('div');
                     header.className = 'chat-user-info';
@@ -226,7 +234,7 @@
                     } else {
                         const list = document.createElement('div');
                         list.className = 'chat-list';
-                        conversationMessages.forEach(msg => {
+                        conversationMessages.forEach((msg) => {
                             const bubble = document.createElement('div');
                             bubble.className = 'chat-message ' + (msg.usuario_id === 'admin' ? 'admin' : '');
                             bubble.innerHTML = `<div class="meta">${msg.usuario_nome} • ${formatTime(msg.criado_em)}</div><div>${msg.texto}</div>`;
@@ -246,14 +254,24 @@
                         const text = textarea.value.trim();
                         if (!text) return;
                         button.disabled = true;
-                        await client.from('mensagens').insert([{
-                            usuario_id: 'admin',
-                            usuario_nome: user.name,
-                            conversa_id: selectedConversation,
-                            texto: text
-                        }]);
+                        const response = await fetch(`${API_BASE}/api/messages`, {
+                            method: 'POST',
+                            headers: {
+                                ...getAuthHeaders(),
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                text,
+                                conversationId: selectedConversation
+                            })
+                        });
+                        const data = await response.json();
                         textarea.value = '';
                         button.disabled = false;
+                        if (!response.ok) {
+                            showNotice(content, data.error || 'Não foi possível enviar a mensagem.');
+                            return;
+                        }
                         loadMessages();
                     });
                     form.appendChild(textarea);
@@ -267,7 +285,7 @@
 
             function renderUser(user) {
                 const myEmail = user.email;
-                const conversationMessages = messages.filter(msg => msg.conversa_id === myEmail);
+                const conversationMessages = messages.filter((msg) => msg.conversa_id === myEmail);
 
                 if (!conversationMessages.length) {
                     const empty = document.createElement('div');
@@ -277,7 +295,7 @@
                 } else {
                     const list = document.createElement('div');
                     list.className = 'chat-list';
-                    conversationMessages.forEach(msg => {
+                    conversationMessages.forEach((msg) => {
                         const bubble = document.createElement('div');
                         bubble.className = 'chat-message ' + (msg.usuario_id === 'admin' ? 'admin' : '');
                         bubble.innerHTML = `<div class="meta">${msg.usuario_nome} • ${formatTime(msg.criado_em)}</div><div>${msg.texto}</div>`;
@@ -297,14 +315,24 @@
                     const text = textarea.value.trim();
                     if (!text) return;
                     button.disabled = true;
-                    await client.from('mensagens').insert([{
-                        usuario_id: myEmail,
-                        usuario_nome: user.name,
-                        conversa_id: myEmail,
-                        texto: text
-                    }]);
+                    const response = await fetch(`${API_BASE}/api/messages`, {
+                        method: 'POST',
+                        headers: {
+                            ...getAuthHeaders(),
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            text,
+                            conversationId: myEmail
+                        })
+                    });
+                    const data = await response.json();
                     textarea.value = '';
                     button.disabled = false;
+                    if (!response.ok) {
+                        showNotice(ROOT, data.error || 'Não foi possível enviar a mensagem.');
+                        return;
+                    }
                     loadMessages();
                 });
                 form.appendChild(textarea);
@@ -313,7 +341,6 @@
             }
 
             loadMessages();
-            setupRealtime();
         })();
     </script>
     <footer class="main-footer">

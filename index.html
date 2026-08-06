@@ -59,7 +59,17 @@
             <div class="carossel-indicators"></div>
         </section>
 
+        <section class="page-text-space">
+            <div class="page-text-container">
+                <!-- Espaço reservado para texto grande/descrição acima de Serviços Online -->
+                <p id="page-space-placeholder">&nbsp;</p>
+            </div>
+        </section>
+
         <section class="services-section">
+            <div class="services-intro">
+                <p>Aqui você encontra os principais serviços e portais da Secretaria para atendimento, consulta e acesso rápido.</p>
+            </div>
             <div class="section-header">
                 <h2>Serviços Online</h2>
                 <p>Acesso rápido aos principais portais da Secretaria</p>
@@ -107,18 +117,65 @@
             </div>
 
             <div class="board-grid">
-                <div class="birthday-widget">
-                    <div class="widget-header">
-                        <span class="material-symbols-outlined">cake</span>
-                        <h3>Aniversariantes do Mês</h3>
+                <div class="birthday-panel" id="birthday-panel">
+                    <div class="birthday-panel-header">
+                        <div class="birthday-panel-title">
+                            <span class="material-symbols-outlined">cake</span>
+                            <div>
+                                <p>Aniversariantes do Mês</p>
+                                <span id="birthday-month-label"></span>
+                            </div>
+                        </div>
+                        <div class="birthday-panel-actions">
+                            <button type="button" class="btn-primary" id="add-birthday-button">Adicionar</button>
+                            <button type="button" class="btn-outline" id="delete-birthday-button">Excluir</button>
+                        </div>
                     </div>
-                    <ul class="birthday-list">
-                        <li><span class="date">01/12</span> <span class="name">João Silva</span></li>
-                        <li><span class="date">05/12</span> <span class="name">Maria Oliveira</span></li>
-                        <li><span class="date">10/12</span> <span class="name">Pedro Santos</span></li>
-                        <li><span class="date">15/12</span> <span class="name">Ana Costa</span></li>
-                        <li><span class="date">20/12</span> <span class="name">Carlos Lima</span></li>
-                    </ul>
+                    <div class="birthday-panel-content">
+                        <div class="birthday-table" id="birthday-list"></div>
+                        <div class="birthday-status" id="birthday-status" aria-live="polite"></div>
+                    </div>
+                </div>
+
+                <div id="birthday-add-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="birthday-add-title">
+                    <div class="modal-card birthday-modal">
+                        <div class="modal-header">
+                            <h3 id="birthday-add-title">Adicionar aniversariante</h3>
+                            <button type="button" class="modal-close" id="birthday-add-close" aria-label="Fechar">&times;</button>
+                        </div>
+                        <form id="birthday-add-form" class="birthday-form">
+                            <label>
+                                Nome
+                                <input type="text" id="birthday-name" required placeholder="Nome completo">
+                            </label>
+                            <label>
+                                Dia
+                                <input type="number" id="birthday-day" required min="1" max="31" placeholder="Dia">
+                            </label>
+                            <label>
+                                Mês
+                                <input type="number" id="birthday-month" required min="1" max="12" placeholder="Mês">
+                            </label>
+                            <div class="birthday-form-actions">
+                                <button type="button" class="btn-outline" id="birthday-add-cancel">Cancelar</button>
+                                <button type="submit" class="btn-primary">Salvar</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <div id="birthday-delete-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="birthday-delete-title">
+                    <div class="modal-card birthday-modal">
+                        <div class="modal-header">
+                            <h3 id="birthday-delete-title">Excluir aniversariante</h3>
+                            <button type="button" class="modal-close" id="birthday-delete-close" aria-label="Fechar">&times;</button>
+                        </div>
+                        <div class="birthday-delete-content" id="birthday-delete-content"></div>
+                        <div class="birthday-form-actions birthday-delete-actions">
+                            <button type="button" class="btn-outline" id="birthday-delete-cancel">Cancelar</button>
+                            <button type="button" class="btn-primary" id="birthday-delete-confirm">Excluir</button>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="gallery-widget carrossel-container">
@@ -172,6 +229,8 @@
     <script src="JS/mobile-navbar.js"></script>
     <script src="JS/image-carrosel.js"></script>
     <script src="JS/carrosel-gestao.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="JS/aniversariantes.js"></script>
 </body>
 
 </html>
