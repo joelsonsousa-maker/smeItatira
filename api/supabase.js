@@ -1,9 +1,10 @@
 const { createClient } = require('@supabase/supabase-js');
 
 function getSupabaseClients() {
-  const supabaseUrl = process.env.SUPABASE_URL || '';
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-  const anonKey = process.env.SUPABASE_ANON_KEY || serviceRoleKey;
+  // Suporta nomes em inglês e português cadastrados nas variáveis de ambiente
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.URL_SUPABASE || '';
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SERVICE_ROLE_KEY || '';
+  const anonKey = process.env.SUPABASE_ANON_KEY || process.env.ANON_KEY || serviceRoleKey;
 
   if (!supabaseUrl) {
     return {
@@ -14,6 +15,7 @@ function getSupabaseClients() {
     };
   }
 
+  // Cliente público (para operações padrão)
   const client = createClient(supabaseUrl, anonKey || 'placeholder', {
     auth: {
       persistSession: false,
@@ -21,14 +23,14 @@ function getSupabaseClients() {
     }
   });
 
-  const admin = serviceRoleKey
-    ? createClient(supabaseUrl, serviceRoleKey, {
-        auth: {
-          persistSession: false,
-          autoRefreshToken: false
-        }
-      })
-    : client;
+  // Cliente Admin (usa Service Role Key para ignorar bloqueios de RLS)
+  const adminKey = serviceRoleKey || anonKey || 'placeholder';
+  const admin = createClient(supabaseUrl, adminKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false
+    }
+  });
 
   return {
     enabled: true,
