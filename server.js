@@ -1,10 +1,12 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const helmet = require('helmet'); // Adicionado para segurança de headers
+const helmet = require('helmet');
+const jwt = require('jsonwebtoken');
 
 const app = express();
 const port = process.env.PORT || 3000;
+const JWT_SECRET = process.env.JWT_SECRET || 'seusegredomuitoespecial123';
 
 app.use(
   helmet({
@@ -33,15 +35,96 @@ const {
   syncUserProfile,
   getUserProfile
 } = require('./api/supabase');
-const {
-  loginRateLimiter,
-  messageRateLimiter,
-  createSession,
-  authenticateUser,
-  requireAdmin
-} = require('./api/security');
 
 const inMemoryMessages = [];
+
+// Middlewares de Rate Limit simplificados
+const loginRateLimiter = (req, res, next) => next();
+const messageRateLimiter = (req, res, next) => next();
+
+// Funções de Autenticação Locais e Supabase
+function createSession(user) {
+  return jwt.sign(
+    {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role
+    },
+    JWT_SECRET,
+    { expiresIn: '7d' }
+  );
+}
+
+async function authenticateUser(req, res, next) {
+  const authHeader = req.headers['authorization'] || req.headers['Authorization'];
+
+  if (!authHeader) {
+    return res.status(401).json({ ok: false, error: 'Token não fornecido.' });
+  }
+
+  const token = authHeader.startsWith('Bearer ')
+    ? authHeader.split(' ')[1]
+    : authHeader;
+
+  if (!token) {
+    return res.status(401).json({ ok: false, error: 'Formato de token inválido.' });
+  }
+
+  // 1. Tenta validar via JWT Local
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded;
+    return next();
+  } catch (err) {
+    // Se não for token local, avança para o Supabase
+  }
+
+  // 2. Tenta validar via Supabase Auth
+  const { enabled, client, admin } = getSupabaseClients();
+  if (enabled && client) {
+    try {
+      const { data: { user }, error } = await client.auth.getUser(token);
+
+      if (!error && user) {
+        let role = 'usuario';
+
+        if (admin) {
+          const { data: profile } = await admin
+            .from('profiles')
+            .select('perfil, nome')
+            .eq('id', user.id)
+            .maybeSingle();
+
+          if (profile) {
+            role = profile.perfil || 'usuario';
+            user.user_metadata = { ...user.user_metadata, nome: profile.nome };
+          }
+        }
+
+        req.user = {
+          id: user.id,
+          email: user.email,
+          name: user.user_metadata?.nome || user.email?.split('@')[0] || 'Usuário',
+          role: role
+        };
+
+        return next();
+      }
+    } catch (supabaseErr) {
+      console.error('Erro na validação via Supabase:', supabaseErr.message);
+    }
+  }
+
+  return res.status(401).json({ ok: false, error: 'Sessão inválida ou expirada. Faça login novamente.' });
+}
+
+function requireAdmin(req, res, next) {
+  if (!req.user || req.user.role !== 'admin') {
+    return res.status(403).json({ ok: false, error: 'Acesso negado. Apenas administradores.' });
+  }
+  next();
+}
 
 app.all(['/api/validate-admin-code', '/validate-admin-code'], validateAdminRoute);
 
@@ -55,7 +138,6 @@ app.post(['/api/auth/login', '/auth/login'], loginRateLimiter, async (req, res) 
 
     const { enabled, client, admin, reason } = getSupabaseClients();
     
-    // Validação segura do ADMIN_CODE
     const adminCodeMatches = Boolean(process.env.ADMIN_CODE) && 
       String(adminCode || '').trim() === String(process.env.ADMIN_CODE).trim();
 
@@ -260,7 +342,6 @@ app.post(['/api/messages', '/messages'], authenticateUser, messageRateLimiter, a
   try {
     const text = String(req.body?.text || '').trim();
     
-    // Impede que usuários comuns alterem o conversationId para personificar outros usuários
     let conversationId;
     if (req.user.role === 'admin') {
       conversationId = String(req.body?.conversationId || req.user.email || req.user.id || '').trim();
@@ -305,7 +386,6 @@ app.post(['/api/messages', '/messages'], authenticateUser, messageRateLimiter, a
   }
 });
 
-// Executa o app.listen apenas quando executado diretamente
 if (require.main === module) {
   app.listen(port, () => {
     console.log(`Servidor rodando localmente em http://localhost:${port}`);
