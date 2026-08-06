@@ -95,17 +95,26 @@
             let selectedConversation = null;
 
             function getCurrentUser() {
-                try {
-                    return JSON.parse(localStorage.getItem('sme_user') || 'null');
-                } catch (error) {
-                    return null;
-                }
-            }
+    try {
+        // Busca 'user' (ou 'sme_user' por retrocompatibilidade)
+        const user = JSON.parse(localStorage.getItem('user') || localStorage.getItem('sme_user') || 'null');
+        if (!user) return null;
 
-            function getAuthHeaders() {
-                const token = localStorage.getItem('sme_session_token');
-                return token ? { Authorization: `Bearer ${token}` } : {};
-            }
+        // Normaliza a checagem de Admin (role === 'admin' ou isAdmin)
+        return {
+            ...user,
+            isAdmin: user.role === 'admin' || user.isAdmin === true
+        };
+    } catch (error) {
+        return null;
+    }
+}
+
+function getAuthHeaders() {
+    // Busca 'token' (ou 'sme_session_token' por retrocompatibilidade)
+    const token = localStorage.getItem('token') || localStorage.getItem('sme_session_token');
+    return token ? { Authorization: `Bearer ${token}` } : {};
+}
 
             function formatTime(value) {
                 return new Date(value).toLocaleString('pt-BR', {
@@ -118,25 +127,33 @@
             }
 
             async function loadMessages() {
-                try {
-                    const response = await fetch(`${API_BASE}/api/messages`, {
-                        headers: {
-                            ...getAuthHeaders(),
-                            'Content-Type': 'application/json'
-                        }
-                    });
-
-                    if (!response.ok) {
-                        throw new Error('Falha ao carregar mensagens');
-                    }
-
-                    const data = await response.json();
-                    messages = data || [];
-                    render();
-                } catch (error) {
-                    console.error('Erro ao carregar mensagens:', error);
-                }
+    try {
+        const response = await fetch(`${API_BASE}/api/messages`, {
+            headers: {
+                ...getAuthHeaders(),
+                'Content-Type': 'application/json'
             }
+        });
+
+        if (response.status === 401) {
+            // Se der 401, remove tokens velhos e manda para a tela de login
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            window.location.href = 'login.html';
+            return;
+        }
+
+        if (!response.ok) {
+            throw new Error('Falha ao carregar mensagens');
+        }
+
+        const data = await response.json();
+        messages = data || [];
+        render();
+    } catch (error) {
+        console.error('Erro ao carregar mensagens:', error);
+    }
+}
 
             function showNotice(container, text) {
                 const notice = document.createElement('div');
