@@ -43,9 +43,9 @@ const {
 
 const inMemoryMessages = [];
 
-app.all('/validate-admin-code', validateAdminRoute);
+app.all(['/api/validate-admin-code', '/validate-admin-code'], validateAdminRoute);
 
-app.post('/auth/login', loginRateLimiter, async (req, res) => {
+app.post(['/api/auth/login', '/auth/login'], loginRateLimiter, async (req, res) => {
   try {
     const { email = '', password = '', adminCode = '' } = req.body || {};
 
@@ -108,7 +108,7 @@ app.post('/auth/login', loginRateLimiter, async (req, res) => {
   }
 });
 
-app.post('/auth/signup', loginRateLimiter, async (req, res) => {
+app.post(['/api/auth/signup', '/auth/signup'], loginRateLimiter, async (req, res) => {
   try {
     const { nome = '', email = '', password = '', confirmPassword = '' } = req.body || {};
     const trimmedEmail = String(email || '').trim().toLowerCase();
@@ -208,15 +208,15 @@ app.post('/auth/signup', loginRateLimiter, async (req, res) => {
   }
 });
 
-app.get('/api/auth/me', authenticateUser, (req, res) => {
+app.get(['/api/auth/me', '/auth/me'], authenticateUser, (req, res) => {
   return res.status(200).json({ ok: true, user: req.user });
 });
 
-app.get('/api/admin/overview', authenticateUser, requireAdmin, (req, res) => {
+app.get(['/api/admin/overview', '/admin/overview'], authenticateUser, requireAdmin, (req, res) => {
   return res.status(200).json({ ok: true, admin: true, user: req.user });
 });
 
-app.get('/api/messages', authenticateUser, async (req, res) => {
+app.get(['/api/messages', '/messages'], authenticateUser, async (req, res) => {
   try {
     const { enabled, admin } = getSupabaseClients();
 
@@ -256,7 +256,7 @@ app.get('/api/messages', authenticateUser, async (req, res) => {
   }
 });
 
-app.post('/messages', authenticateUser, messageRateLimiter, async (req, res) => {
+app.post(['/api/messages', '/messages'], authenticateUser, messageRateLimiter, async (req, res) => {
   try {
     const text = String(req.body?.text || '').trim();
     
