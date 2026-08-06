@@ -158,7 +158,7 @@
 
         function getStoredUser() {
             try {
-                const raw = localStorage.getItem('sme_user');
+                const raw = localStorage.getItem('sme_user') || localStorage.getItem('user');
                 return raw ? JSON.parse(raw) : null;
             } catch (e) {
                 return null;
@@ -167,7 +167,10 @@
 
         function saveUser(user) {
             try {
-                localStorage.setItem('sme_user', JSON.stringify(user));
+                const jsonUser = JSON.stringify(user);
+                // Grava em ambos os nomes de chave para compatibilidade total
+                localStorage.setItem('sme_user', jsonUser);
+                localStorage.setItem('user', jsonUser);
             } catch (e) {
                 console.warn('Não foi possível salvar o usuário localmente:', e);
             }
@@ -175,7 +178,9 @@
 
         function saveSession(token) {
             try {
+                // Grava em ambos os nomes de chave para o chat conseguir autenticar
                 localStorage.setItem('sme_session_token', token);
+                localStorage.setItem('token', token);
             } catch (e) {
                 console.warn('Não foi possível salvar o token da sessão:', e);
             }
@@ -186,10 +191,11 @@
                 userDetailsBox.textContent = '';
                 return;
             }
+            const isUserAdmin = user.isAdmin || user.role === 'admin';
             userDetailsBox.innerHTML = `
-                <div><strong>Usuário:</strong> ${user.name}</div>
+                <div><strong>Usuário:</strong> ${user.name || user.nome || 'Usuário'}</div>
                 <div><strong>E-mail:</strong> ${user.email}</div>
-                <div><strong>Perfil:</strong> ${user.isAdmin ? 'Administrador' : 'Visitante'}</div>
+                <div><strong>Perfil:</strong> ${isUserAdmin ? 'Administrador' : 'Visitante'}</div>
             `;
         }
 
@@ -257,23 +263,34 @@
             }
 
             try {
+                updateLoginMessage('Autenticando...', 'info');
+
                 const result = await authenticateUser({
                     email,
                     password,
                     adminCode
                 });
 
+                const isUserAdmin = result.user.role === 'admin' || result.user.isAdmin === true;
+
                 const user = {
-                    name: result.user.name,
+                    id: result.user.id,
+                    name: result.user.name || result.user.nome || email.split('@')[0],
                     email: result.user.email,
-                    isAdmin: result.user.role === 'admin'
+                    role: isUserAdmin ? 'admin' : 'usuario',
+                    isAdmin: isUserAdmin
                 };
 
                 saveUser(user);
                 saveSession(result.token);
                 renderUserDetails(user);
-                updateLoginMessage(`Bem-vindo ${user.name}! Agora você está conectado como ${user.isAdmin ? 'Administrador' : 'Visitante'}.`, 'success');
-                window.location.href = 'index.html';
+
+                updateLoginMessage(`Bem-vindo ${user.name}! Agora você está conectado como ${user.isAdmin ? 'Administrador' : 'Visitante'}. Redirecionando...`, 'success');
+
+                setTimeout(() => {
+                    window.location.href = 'index.html';
+                }, 800);
+
             } catch (error) {
                 updateLoginMessage(error.message || 'Não foi possível entrar no momento. Tente novamente.', 'error');
             }
