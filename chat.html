@@ -95,28 +95,26 @@
             let selectedConversation = null;
 
             function getCurrentUser() {
-    try {
-        // Busca 'user' (ou 'sme_user' por retrocompatibilidade)
-        const user = JSON.parse(localStorage.getItem('user') || localStorage.getItem('sme_user') || 'null');
-        if (!user) return null;
+                try {
+                    const raw = localStorage.getItem('sme_user') || localStorage.getItem('user');
+                    if (!raw) return null;
+                    const u = JSON.parse(raw);
+                    return {
+                        ...u,
+                        isAdmin: u.role === 'admin' || u.isAdmin === true
+                    };
+                } catch (error) {
+                    return null;
+                }
+            }
 
-        // Normaliza a checagem de Admin (role === 'admin' ou isAdmin)
-        return {
-            ...user,
-            isAdmin: user.role === 'admin' || user.isAdmin === true
-        };
-    } catch (error) {
-        return null;
-    }
-}
-
-function getAuthHeaders() {
-    // Busca 'token' (ou 'sme_session_token' por retrocompatibilidade)
-    const token = localStorage.getItem('token') || localStorage.getItem('sme_session_token');
-    return token ? { Authorization: `Bearer ${token}` } : {};
-}
+            function getAuthHeaders() {
+                const token = localStorage.getItem('sme_session_token') || localStorage.getItem('token');
+                return token ? { Authorization: `Bearer ${token}` } : {};
+            }
 
             function formatTime(value) {
+                if (!value) return '';
                 return new Date(value).toLocaleString('pt-BR', {
                     day: '2-digit',
                     month: '2-digit',
@@ -127,37 +125,42 @@ function getAuthHeaders() {
             }
 
             async function loadMessages() {
-    try {
-        const response = await fetch(`${API_BASE}/api/messages`, {
-            headers: {
-                ...getAuthHeaders(),
-                'Content-Type': 'application/json'
+                const user = getCurrentUser();
+                if (!user) {
+                    render();
+                    return;
+                }
+
+                try {
+                    const response = await fetch(`${API_BASE}/api/messages`, {
+                        headers: {
+                            ...getAuthHeaders(),
+                            'Content-Type': 'application/json'
+                        }
+                    });
+
+                    if (response.status === 401) {
+                        showNotice(ROOT, 'Sua sessão expirou. Faça login novamente.');
+                        return;
+                    }
+
+                    if (!response.ok) {
+                        throw new Error('Falha ao carregar mensagens');
+                    }
+
+                    const data = await response.json();
+                    messages = Array.isArray(data) ? data : [];
+                    render();
+                } catch (error) {
+                    console.error('Erro ao carregar mensagens:', error);
+                    render();
+                }
             }
-        });
-
-        if (response.status === 401) {
-            // Se der 401, remove tokens velhos e manda para a tela de login
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
-            window.location.href = 'login.html';
-            return;
-        }
-
-        if (!response.ok) {
-            throw new Error('Falha ao carregar mensagens');
-        }
-
-        const data = await response.json();
-        messages = data || [];
-        render();
-    } catch (error) {
-        console.error('Erro ao carregar mensagens:', error);
-    }
-}
 
             function showNotice(container, text) {
                 const notice = document.createElement('div');
                 notice.className = 'chat-empty';
+                notice.style.marginBottom = '12px';
                 notice.textContent = text;
                 container.prepend(notice);
             }
@@ -177,7 +180,7 @@ function getAuthHeaders() {
                 if (!user) {
                     const empty = document.createElement('div');
                     empty.className = 'chat-empty';
-                    empty.innerHTML = 'Você não está conectado. <a href="login.html" class="chat-action" style="text-decoration:none;">Entrar</a>';
+                    empty.innerHTML = 'Você não está conectado. <a href="login.html" class="chat-action" style="text-decoration:none; margin-left:10px;">Entrar</a>';
                     ROOT.appendChild(empty);
                     return;
                 }
@@ -192,8 +195,8 @@ function getAuthHeaders() {
             function renderAdmin(user) {
                 const conversations = {};
                 messages.forEach((message) => {
-                    if (message.conversa_id !== 'admin') {
-                        conversations[message.conversa_id] = message.usuario_nome;
+                    if (message.conversa_id && message.conversa_id !== 'admin') {
+                        conversations[message.conversa_id] = message.usuario_nome || message.conversa_id;
                     }
                 });
 
@@ -254,7 +257,7 @@ function getAuthHeaders() {
                         conversationMessages.forEach((msg) => {
                             const bubble = document.createElement('div');
                             bubble.className = 'chat-message ' + (msg.usuario_id === 'admin' ? 'admin' : '');
-                            bubble.innerHTML = `<div class="meta">${msg.usuario_nome} • ${formatTime(msg.criado_em)}</div><div>${msg.texto}</div>`;
+                            bubble.innerHTML = `<div class="meta">${msg.usuario_nome || 'Usuário'} • ${formatTime(msg.criado_em)}</div><div>${msg.texto || ''}</div>`;
                             list.appendChild(bubble);
                         });
                         content.appendChild(list);
@@ -271,25 +274,30 @@ function getAuthHeaders() {
                         const text = textarea.value.trim();
                         if (!text) return;
                         button.disabled = true;
-                        const response = await fetch(`${API_BASE}/api/messages`, {
-                            method: 'POST',
-                            headers: {
-                                ...getAuthHeaders(),
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify({
-                                text,
-                                conversationId: selectedConversation
-                            })
-                        });
-                        const data = await response.json();
-                        textarea.value = '';
-                        button.disabled = false;
-                        if (!response.ok) {
-                            showNotice(content, data.error || 'Não foi possível enviar a mensagem.');
-                            return;
+                        try {
+                            const response = await fetch(`${API_BASE}/api/messages`, {
+                                method: 'POST',
+                                headers: {
+                                    ...getAuthHeaders(),
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({
+                                    text,
+                                    conversationId: selectedConversation
+                                })
+                            });
+                            const data = await response.json();
+                            textarea.value = '';
+                            button.disabled = false;
+                            if (!response.ok) {
+                                showNotice(content, data.error || 'Não foi possível enviar a mensagem.');
+                                return;
+                            }
+                            loadMessages();
+                        } catch (err) {
+                            button.disabled = false;
+                            showNotice(content, 'Erro de conexão ao enviar mensagem.');
                         }
-                        loadMessages();
                     });
                     form.appendChild(textarea);
                     form.appendChild(button);
@@ -307,6 +315,7 @@ function getAuthHeaders() {
                 if (!conversationMessages.length) {
                     const empty = document.createElement('div');
                     empty.className = 'chat-empty';
+                    empty.style.marginBottom = '14px';
                     empty.textContent = 'Você ainda não enviou nenhuma mensagem. Use o campo abaixo para falar com o administrador.';
                     ROOT.appendChild(empty);
                 } else {
@@ -315,7 +324,7 @@ function getAuthHeaders() {
                     conversationMessages.forEach((msg) => {
                         const bubble = document.createElement('div');
                         bubble.className = 'chat-message ' + (msg.usuario_id === 'admin' ? 'admin' : '');
-                        bubble.innerHTML = `<div class="meta">${msg.usuario_nome} • ${formatTime(msg.criado_em)}</div><div>${msg.texto}</div>`;
+                        bubble.innerHTML = `<div class="meta">${msg.usuario_nome || 'Usuário'} • ${formatTime(msg.criado_em)}</div><div>${msg.texto || ''}</div>`;
                         list.appendChild(bubble);
                     });
                     ROOT.appendChild(list);
@@ -332,25 +341,30 @@ function getAuthHeaders() {
                     const text = textarea.value.trim();
                     if (!text) return;
                     button.disabled = true;
-                    const response = await fetch(`${API_BASE}/api/messages`, {
-                        method: 'POST',
-                        headers: {
-                            ...getAuthHeaders(),
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            text,
-                            conversationId: myEmail
-                        })
-                    });
-                    const data = await response.json();
-                    textarea.value = '';
-                    button.disabled = false;
-                    if (!response.ok) {
-                        showNotice(ROOT, data.error || 'Não foi possível enviar a mensagem.');
-                        return;
+                    try {
+                        const response = await fetch(`${API_BASE}/api/messages`, {
+                            method: 'POST',
+                            headers: {
+                                ...getAuthHeaders(),
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                text,
+                                conversationId: myEmail
+                            })
+                        });
+                        const data = await response.json();
+                        textarea.value = '';
+                        button.disabled = false;
+                        if (!response.ok) {
+                            showNotice(ROOT, data.error || 'Não foi possível enviar a mensagem.');
+                            return;
+                        }
+                        loadMessages();
+                    } catch (err) {
+                        button.disabled = false;
+                        showNotice(ROOT, 'Erro de conexão ao enviar mensagem.');
                     }
-                    loadMessages();
                 });
                 form.appendChild(textarea);
                 form.appendChild(button);
@@ -387,10 +401,4 @@ function getAuthHeaders() {
         </div>
         <div class="footer-bottom">
             <p>© 2024 Secretaria Municipal de Educação de Itatira. Todos os direitos reservados.</p>
-            <p class="dev-credits">Desenvolvido por <a href="https://github.com/vinisantoszx" target="_blank">Vinícius Santos</a></p>
-        </div>
-    </footer>
-    <script src="JS/mobile-navbar.js"></script>
-</body>
-
-</html>
+            <p class="dev-credits">Desenvolvido por <a href="https
