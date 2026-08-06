@@ -298,11 +298,13 @@ app.get(['/api/admin/overview', '/admin/overview'], authenticateUser, requireAdm
   return res.status(200).json({ ok: true, admin: true, user: req.user });
 });
 
+// Endpoint para buscar mensagens
 app.get(['/api/messages', '/messages'], authenticateUser, async (req, res) => {
   try {
-    const { enabled, admin } = getSupabaseClients();
+    const { enabled, admin, client } = getSupabaseClients();
+    const dbClient = admin || client;
 
-    if (!enabled || !admin) {
+    if (!enabled || !dbClient) {
       const visibleMessages = inMemoryMessages.filter((message) => {
         if (req.user.role === 'admin') return true;
         return message.conversa_id === (req.user.email || req.user.id);
@@ -310,49 +312,48 @@ app.get(['/api/messages', '/messages'], authenticateUser, async (req, res) => {
       return res.status(200).json(visibleMessages);
     }
 
-    // Tenta buscar no Supabase
-    let query = admin.from('messages').select('*').order('created_at', { ascending: true });
-    
+    let query = dbClient
+      .from('messages')
+      .select('*')
+      .order('created_at', { ascending: true });
+
     // Se não for admin, filtra pela conversa do próprio usuário
     if (req.user.role !== 'admin') {
-      const userIdentifier = req.user.email || req.user.id;
-      // Tenta buscar por conversation_id ou conversa_id
-      query = query.or(`conversation_id.eq.${userIdentifier},conversa_id.eq.${userIdentifier}`);
+      const myId = req.user.email || req.user.id;
+      query = query.eq('conversation_id', myId);
     }
 
     const { data, error } = await query;
-
     if (error) {
-      console.error('Erro na query do Supabase Messages:', error);
-      // Retorna array vazio em caso de erro na tabela para não quebrar a página com erro 500
-      return res.status(200).json([]);
+      console.error('Erro na query do Supabase:', error);
+      throw error;
     }
 
-    // Normaliza a resposta para o frontend receber os campos padronizados
-    const mappedMessages = (data || []).map((message) => ({
-      id: message.id,
-      usuario_id: message.user_id || message.usuario_id,
-      usuario_nome: message.user_name || message.usuario_nome,
-      conversa_id: message.conversation_id || message.conversa_id,
-      texto: message.content || message.texto,
-      criado_em: message.created_at || message.criado_em
+    // Mapeamento tolerante para aceitar colunas em inglês ou português do banco
+    const mappedMessages = (data || []).map((msg) => ({
+      id: msg.id,
+      usuario_id: msg.user_id || msg.usuario_id || '',
+      usuario_nome: msg.user_name || msg.usuario_nome || 'Usuário',
+      conversa_id: msg.conversation_id || msg.conversa_id || '',
+      texto: msg.content || msg.texto || '',
+      criado_em: msg.created_at || msg.criado_em
     }));
 
     return res.status(200).json(mappedMessages);
   } catch (error) {
-    console.error('Erro geral ao buscar mensagens:', error);
-    // Em vez de 500, retorna lista vazia para a interface do chat carregar normalmente
-    return res.status(200).json([]);
+    console.error('Erro ao buscar mensagens:', error);
+    return res.status(500).json({ ok: false, error: 'Erro interno ao carregar mensagens.' });
   }
 });
 
+// Endpoint para enviar mensagens
 app.post(['/api/messages', '/messages'], authenticateUser, messageRateLimiter, async (req, res) => {
   try {
-    const text = String(req.body?.text || req.body?.texto || '').trim();
-    
+    const text = String(req.body?.text || '').trim();
+
     let conversationId;
     if (req.user.role === 'admin') {
-      conversationId = String(req.body?.conversationId || req.body?.conversa_id || req.user.email || req.user.id || '').trim();
+      conversationId = String(req.body?.conversationId || req.user.email || req.user.id || '').trim();
     } else {
       conversationId = String(req.user.email || req.user.id || '').trim();
     }
@@ -361,33 +362,33 @@ app.post(['/api/messages', '/messages'], authenticateUser, messageRateLimiter, a
       return res.status(400).json({ ok: false, error: 'Texto e conversa são obrigatórios.' });
     }
 
-    const { enabled, admin } = getSupabaseClients();
-    const createdAt = new Date().toISOString();
+    const { enabled, admin, client } = getSupabaseClients();
+    const dbClient = admin || client;
 
-    if (!enabled || !admin) {
+    const payload = {
+      user_id: req.user.id || 'admin',
+      user_name: req.user.name || (req.user.role === 'admin' ? 'Administrador' : 'Usuário'),
+      conversation_id: conversationId,
+      content: text,
+      created_at: new Date().toISOString()
+    };
+
+    if (!enabled || !dbClient) {
       inMemoryMessages.push({
         id: `${Date.now()}`,
-        usuario_id: req.user.id,
-        usuario_nome: req.user.name,
-        conversa_id: conversationId,
-        texto: text,
-        criado_em: createdAt
+        usuario_id: payload.user_id,
+        usuario_nome: payload.user_name,
+        conversa_id: payload.conversation_id,
+        texto: payload.content,
+        criado_em: payload.created_at
       });
       return res.status(201).json({ ok: true, message: 'Mensagem enviada com sucesso.' });
     }
 
-    // Inserção usando exatamente as colunas existentes no seu Supabase
-    const { error } = await admin.from('messages').insert({
-      user_id: req.user.id,
-      user_name: req.user.name,
-      conversation_id: conversationId,
-      content: text,
-      created_at: createdAt
-    });
-
+    const { error } = await dbClient.from('messages').insert(payload);
     if (error) {
-      console.error('Erro ao inserir mensagem no Supabase:', error.message);
-      return res.status(500).json({ ok: false, error: `Erro no banco de dados: ${error.message}` });
+      console.error('Erro ao inserir no Supabase:', error);
+      throw error;
     }
 
     return res.status(201).json({ ok: true, message: 'Mensagem enviada com sucesso.' });
