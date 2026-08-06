@@ -68,8 +68,9 @@
         .chat-card-user { padding: 14px 12px; border-radius: 12px; background: #f8fbff; border: 1px solid #d9e5f2; margin-bottom: 10px; cursor: pointer; }
         .chat-card-user.active { background: #003366; color: #fff; }
         .chat-list { max-height: 420px; overflow:auto; display:flex; flex-direction:column; gap:11px; padding-right:4px; }
-        .chat-message { padding: 12px 14px; border-radius: 12px; background: #f3f6fb; border: 1px solid #e5eef8; }
-        .chat-message.admin { background: #e9f5ff; border-color: #bcdff9; }
+        .chat-message { padding: 12px 14px; border-radius: 12px; background: #f8fbff; border: 1px solid #e5eef8; color: #1f2d3d; }
+        .chat-message.user { background: #f3fff7; border-color: #cfead5; }
+        .chat-message.admin { background: #eef6ff; border-color: #c9def8; }
         .chat-message .meta { font-size: 0.82rem; color: #5f6d7c; margin-bottom: 8px; }
         .chat-form { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
         .chat-form textarea { flex: 1; min-height: 88px; border-radius: 12px; border: 1px solid var(--color-border); padding: 12px; resize: vertical; font-family: inherit; font-size: 0.95rem; }
@@ -256,7 +257,7 @@
                         list.className = 'chat-list';
                         conversationMessages.forEach((msg) => {
                             const bubble = document.createElement('div');
-                            bubble.className = 'chat-message ' + (msg.usuario_id === 'admin' ? 'admin' : '');
+                            bubble.className = 'chat-message ' + (msg.usuario_id === 'admin' ? 'admin' : 'user');
                             bubble.innerHTML = `<div class="meta">${msg.usuario_nome || 'Usuário'} • ${formatTime(msg.criado_em)}</div><div>${msg.texto || ''}</div>`;
                             list.appendChild(bubble);
                         });
@@ -323,7 +324,7 @@
                     list.className = 'chat-list';
                     conversationMessages.forEach((msg) => {
                         const bubble = document.createElement('div');
-                        bubble.className = 'chat-message ' + (msg.usuario_id === 'admin' ? 'admin' : '');
+                        bubble.className = 'chat-message ' + (msg.usuario_id === 'admin' ? 'admin' : 'user');
                         bubble.innerHTML = `<div class="meta">${msg.usuario_nome || 'Usuário'} • ${formatTime(msg.criado_em)}</div><div>${msg.texto || ''}</div>`;
                         list.appendChild(bubble);
                     });
@@ -374,6 +375,7 @@
             loadMessages();
         })();
     </script>
+    <script src="JS/mobile-navbar.js"></script>
     <footer class="main-footer">
         <div class="footer-grid">
             <div class="footer-info">
