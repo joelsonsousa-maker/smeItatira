@@ -112,3 +112,49 @@ $$;
 create trigger if not exists prevent_perfil_change_trigger
   before update on public.profiles
   for each row execute function public.prevent_perfil_change();
+
+-- Tabelas para Indicadores (documentos e imagens)
+create table if not exists public.indicador_documentos (
+  id uuid primary key default gen_random_uuid(),
+  descricao text,
+  url text not null,
+  storage_path text,
+  tipo text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.indicador_imagens (
+  id uuid primary key default gen_random_uuid(),
+  url text not null,
+  storage_path text,
+  display_order integer default 0,
+  created_at timestamptz not null default now()
+);
+
+alter table public.indicador_documentos enable row level security;
+alter table public.indicador_imagens enable row level security;
+
+create policy if not exists "Public can select documentos"
+  on public.indicador_documentos for select
+  using (true);
+
+create policy if not exists "Admins can manage documentos"
+  on public.indicador_documentos for all
+  using (
+    exists (
+      select 1 from public.profiles as p where p.id = auth.uid() and p.perfil = 'admin'
+    )
+  );
+
+create policy if not exists "Public can select imagens"
+  on public.indicador_imagens for select
+  using (true);
+
+create policy if not exists "Admins can manage imagens"
+  on public.indicador_imagens for all
+  using (
+    exists (
+      select 1 from public.profiles as p where p.id = auth.uid() and p.perfil = 'admin'
+    )
+  );

@@ -30,7 +30,7 @@
 .nav-list {
     display: flex;
     list-style: none;
-    gap: 2rem;
+    gap: 1rem;
 }
 
 .link-nav {
@@ -100,7 +100,7 @@
         flex-direction: column;
         justify-content: center;
         align-items: center;
-        gap: 2rem;
+        gap: 1.25rem;
         transition: right 0.4s ease-in-out;
         z-index: 1000;
     }

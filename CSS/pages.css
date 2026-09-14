@@ -341,8 +341,8 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    gap: 1.5rem;
-    margin-bottom: 2rem;
+    gap: 1rem;
+    margin-bottom: 1rem;
 }
 
 .membros-list {
@@ -663,4 +663,171 @@
     color: var(--color-text-light);
     text-align: justify;
     border-top: 1px solid var(--color-border);
+}
+
+/* Indicadores - files grid and responsive image gallery */
+.files-grid {
+    display: grid;
+    gap: 0.75rem;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+.file-card { }
+.file-card .card-header { display:flex; justify-content:space-between; align-items:center; }
+.file-card .card-body { padding:1rem; }
+.file-link {
+    color: #0d4f8b;
+    font-weight: 700;
+    text-decoration: none;
+}
+.file-link:hover {
+    text-decoration: underline;
+}
+
+.indicator-template {
+    display: grid;
+    grid-template-columns: minmax(220px, 320px) minmax(0, 1fr);
+    gap: 1.25rem;
+    background: #f4f7fb;
+    border: 1px solid #dfe9f4;
+    border-radius: 18px;
+    padding: 1.2rem;
+    margin: 0 0 1.8rem;
+    align-items: center;
+}
+
+.template-image-block {
+    width: 100%;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #fff;
+    border: 1px solid #dfe9f4;
+}
+
+.template-image-block img {
+    display: block;
+    width: 100%;
+    height: 220px;
+    object-fit: cover;
+}
+
+.template-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+}
+
+.template-content label {
+    font-weight: 700;
+    color: #1c4d7a;
+}
+
+.template-content textarea {
+    width: 100%;
+    min-height: 120px;
+    padding: 0.8rem 0.9rem;
+    border: 1px solid #d0d7de;
+    border-radius: 10px;
+    resize: vertical;
+    font: inherit;
+    background: #fff;
+}
+
+.template-content .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: fit-content;
+    text-decoration: none;
+}
+
+.demo-image-gallery,
+.demo-file-list {
+    margin: 1.5rem 0;
+}
+
+.demo-image-gallery h3,
+.demo-file-list h3 {
+    margin-bottom: 1rem;
+    color: #1c4d7a;
+}
+
+.demo-image-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 0.75rem;
+}
+
+.demo-image-item {
+    border: 1px solid #dfe9f4;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #fff;
+}
+
+.demo-image-item img {
+    display: block;
+    width: 100%;
+    height: 120px;
+    object-fit: cover;
+}
+
+.demo-file-list {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.demo-file-item {
+    background: #f4f7fb;
+    border: 1px solid #dfe9f4;
+    border-radius: 10px;
+    padding: 0.75rem 1rem;
+}
+
+.demo-file-item a {
+    color: #0d4f8b;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.image-gallery {
+    display: grid;
+    gap: 0.75rem;
+    grid-template-columns: repeat(2, minmax(340px, 1fr));
+}
+.gallery-thumb { position:relative; overflow:hidden; border-radius:12px; border:1px solid #dfe9f4; background:#fff; }
+.gallery-thumb img { width:100%; height:300px; object-fit:contain; display:block; cursor:pointer; background:#f4f7fb; }
+.gallery-thumb .thumb-delete { position:absolute; top:8px; right:8px; z-index:2; }
+
+.lightbox-card {
+    position: relative;
+    background: transparent;
+    box-shadow: none;
+    padding: 0;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: min(90vw, 1100px);
+    max-width: 100%;
+}
+.lightbox-card img {
+    width: auto;
+    max-width: 100%;
+    max-height: 85vh;
+    height: auto;
+    object-fit: contain;
+    border-radius: 10px;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+}
+.lightbox-card .modal-close { position:absolute; top:-18px; right:-18px; background:#fff; border-radius:50%; width:40px; height:40px; }
+.nav-btn { background:transparent; border:none; color:#fff; font-size:2.2rem; cursor:pointer; padding:0 12px; }
+.lightbox-prev { position:absolute; left:8px; }
+.lightbox-next { position:absolute; right:8px; }
+
+@media (min-width:1000px){
+    .image-gallery { grid-template-columns: repeat(2, minmax(340px, 1fr)); }
+}
+@media (max-width:700px){
+    .image-gallery { grid-template-columns: repeat(1, 1fr); }
+    .gallery-thumb img { height:240px; }
 }

@@ -35,6 +35,9 @@ const {
   syncUserProfile,
   getUserProfile
 } = require('./api/supabase');
+const path = require('path');
+const multer = require('multer');
+const fs = require('fs');
 
 const inMemoryMessages = [];
 
@@ -395,6 +398,233 @@ app.post(['/api/messages', '/messages'], authenticateUser, messageRateLimiter, a
   } catch (error) {
     console.error('Erro ao enviar mensagem:', error);
     return res.status(500).json({ ok: false, error: 'Erro interno ao enviar mensagem.' });
+  }
+});
+
+// --- Indicadores endpoints (documentos e imagens) ---
+// Configuração de upload local temporário via multer (usado quando Supabase Storage não estiver disponível)
+const upload = multer({ dest: path.join(__dirname, 'tmp_uploads') });
+// Forçar uso de storage local (útil em ambientes sem Supabase configurado)
+const FORCE_LOCAL_STORAGE = true;
+
+// GET /api/indicadores -> retorna documentos e imagens
+app.get('/api/indicadores', async (req, res) => {
+  try {
+    const { enabled, admin, client } = getSupabaseClients();
+    const db = admin || client;
+
+    if (!enabled || !db) {
+      return res.status(200).json({ ok: true, documentos: [], imagens: [] });
+    }
+
+    const [{ data: documentos, error: docErr }, { data: imagens, error: imgErr }] = await Promise.all([
+      db.from('indicador_documentos').select('*').order('created_at', { ascending: false }),
+      db.from('indicador_imagens').select('*').order('display_order', { ascending: true })
+    ]);
+
+    if (docErr || imgErr) {
+      console.error('Erro ao buscar indicadores:', docErr || imgErr);
+      throw docErr || imgErr;
+    }
+
+    return res.status(200).json({ ok: true, documentos: documentos || [], imagens: imagens || [] });
+  } catch (error) {
+    console.error('Erro em GET /api/indicadores:', error.message || error);
+    return res.status(500).json({ ok: false, error: 'Erro interno ao carregar indicadores.' });
+  }
+});
+
+// POST /api/indicadores/documentos -> upload documento (admin)
+app.post('/api/indicadores/documentos', authenticateUser, requireAdmin, upload.single('file'), async (req, res) => {
+  try {
+    const file = req.file;
+    const descricao = String(req.body.descricao || '').trim();
+    if (!file) return res.status(400).json({ ok: false, error: 'Arquivo é obrigatório.' });
+
+    const allowed = ['.pdf', '.doc', '.docx', '.xls', '.xlsx'];
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (!allowed.includes(ext)) {
+      fs.unlinkSync(file.path);
+      return res.status(400).json({ ok: false, error: 'Tipo de arquivo não permitido.' });
+    }
+
+    const { enabled, admin } = getSupabaseClients();
+    if (FORCE_LOCAL_STORAGE || !enabled || !admin) {
+      // fallback: serve file via public path (move to /uploads)
+      const uploadsDir = path.join(__dirname, '..', 'uploads');
+      if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+      const dest = path.join(uploadsDir, `${Date.now()}_${file.originalname}`);
+      fs.renameSync(file.path, dest);
+      const url = `/uploads/${path.basename(dest)}`;
+
+      if (admin) {
+        try {
+          const { data, error } = await admin.from('indicador_documentos').insert({ descricao, url, storage_path: dest, tipo: ext.replace('.', '') });
+          if (!error && data && data[0]) return res.status(201).json({ ok: true, documento: data[0] });
+          console.warn('Admin insert returned error or no data, falling back to local response:', error);
+        } catch (e) {
+          console.warn('Admin insert failed, returning local resource:', e.message || e);
+        }
+      }
+
+      return res.status(201).json({ ok: true, documento: { descricao, url, tipo: ext.replace('.', '') } });
+    }
+
+    // Prefer Supabase Storage
+    const { admin: supaAdmin } = getSupabaseClients();
+    const bucket = process.env.SUPABASE_STORAGE_BUCKET || 'public';
+    const storagePath = `indicadores/documentos/${Date.now()}_${file.originalname}`;
+    const fileBuffer = fs.readFileSync(file.path);
+
+    const { data: uploadData, error: uploadErr } = await supaAdmin.storage.from(bucket).upload(storagePath, fileBuffer, { upsert: false, contentType: file.mimetype });
+    // remove temp file
+    fs.unlinkSync(file.path);
+
+    // se falhar no upload (ex: bucket não existe), faz fallback para storage local
+    if (uploadErr) {
+      console.warn('Supabase upload failed, falling back to local storage:', uploadErr.message || uploadErr);
+      const uploadsDir = path.join(__dirname, '..', 'uploads');
+      if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+      const dest = path.join(uploadsDir, `${Date.now()}_${file.originalname}`);
+      fs.writeFileSync(dest, fileBuffer);
+      const url = `/uploads/${path.basename(dest)}`;
+      if (supaAdmin) {
+        try {
+          const { data: inserted, error: insertErr } = await supaAdmin.from('indicador_documentos').insert({ descricao, url, storage_path: dest, tipo: ext.replace('.', '') });
+          if (!insertErr && inserted && inserted[0]) return res.status(201).json({ ok: true, documento: inserted[0] });
+          console.warn('Supabase insert after fallback returned error or no data, falling back to local response:', insertErr);
+        } catch (e) {
+          console.warn('Supabase insert after fallback failed, returning local resource:', e.message || e);
+        }
+      }
+      return res.status(201).json({ ok: true, documento: { descricao, url, tipo: ext.replace('.', '') } });
+    }
+
+    const publicUrl = supaAdmin.storage.from(bucket).getPublicUrl(uploadData.path).publicURL;
+    const { data: inserted, error: insertErr } = await supaAdmin.from('indicador_documentos').insert({ descricao, url: publicUrl, storage_path: uploadData.path, tipo: ext.replace('.', '') });
+    if (insertErr) throw insertErr;
+
+    return res.status(201).json({ ok: true, documento: inserted[0] });
+  } catch (error) {
+    console.error('Erro POST /api/indicadores/documentos:', error.message || error);
+    return res.status(500).json({ ok: false, error: 'Erro interno ao enviar documento.' });
+  }
+});
+
+// DELETE /api/indicadores/documentos/:id -> delete document (admin)
+app.delete('/api/indicadores/documentos/:id', authenticateUser, requireAdmin, async (req, res) => {
+  try {
+    const id = req.params.id;
+    const { enabled, admin } = getSupabaseClients();
+    if (!enabled || !admin) return res.status(500).json({ ok: false, error: 'Supabase não configurado.' });
+
+    const { data: doc } = await admin.from('indicador_documentos').select('*').eq('id', id).maybeSingle();
+    if (!doc) return res.status(404).json({ ok: false, error: 'Documento não encontrado.' });
+
+    // remove from storage if storage_path exists
+    if (doc.storage_path) {
+      const bucket = process.env.SUPABASE_STORAGE_BUCKET || 'public';
+      await admin.storage.from(bucket).remove([doc.storage_path]);
+    }
+
+    const { error } = await admin.from('indicador_documentos').delete().eq('id', id);
+    if (error) throw error;
+
+    return res.status(200).json({ ok: true });
+  } catch (error) {
+    console.error('Erro DELETE /api/indicadores/documentos/:id', error.message || error);
+    return res.status(500).json({ ok: false, error: 'Erro ao excluir documento.' });
+  }
+});
+
+// POST imagens
+app.post('/api/indicadores/imagens', authenticateUser, requireAdmin, upload.single('image'), async (req, res) => {
+  try {
+    const file = req.file;
+    if (!file) return res.status(400).json({ ok: false, error: 'Imagem é obrigatória.' });
+
+    const allowed = ['.png', '.jpg', '.jpeg', '.webp'];
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (!allowed.includes(ext)) { fs.unlinkSync(file.path); return res.status(400).json({ ok: false, error: 'Formato de imagem não permitido.' }); }
+
+    const { enabled, admin } = getSupabaseClients();
+    if (FORCE_LOCAL_STORAGE || !enabled || !admin) {
+      const uploadsDir = path.join(__dirname, '..', 'uploads');
+      if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+      const dest = path.join(uploadsDir, `${Date.now()}_${file.originalname}`);
+      fs.renameSync(file.path, dest);
+      const url = `/uploads/${path.basename(dest)}`;
+      if (admin) {
+        try {
+          const { data, error } = await admin.from('indicador_imagens').insert({ url, storage_path: dest });
+          if (!error && data && data[0]) return res.status(201).json({ ok: true, imagem: data[0] });
+          console.warn('Admin insert image returned error or no data, falling back to local response:', error);
+        } catch (e) {
+          console.warn('Admin insert image failed, returning local resource:', e.message || e);
+        }
+      }
+      return res.status(201).json({ ok: true, imagem: { url } });
+    }
+
+    // Supabase storage
+    const { admin: supaAdmin } = getSupabaseClients();
+    const bucket = process.env.SUPABASE_STORAGE_BUCKET || 'public';
+    const storagePath = `indicadores/imagens/${Date.now()}_${file.originalname}`;
+    const fileBuffer = fs.readFileSync(file.path);
+    const { data: uploadData, error: uploadErr } = await supaAdmin.storage.from(bucket).upload(storagePath, fileBuffer, { upsert: false, contentType: file.mimetype });
+    fs.unlinkSync(file.path);
+
+    if (uploadErr) {
+      console.warn('Supabase image upload failed, falling back to local storage:', uploadErr.message || uploadErr);
+      const uploadsDir = path.join(__dirname, '..', 'uploads');
+      if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+      const dest = path.join(uploadsDir, `${Date.now()}_${file.originalname}`);
+      fs.writeFileSync(dest, fileBuffer);
+      const url = `/uploads/${path.basename(dest)}`;
+      if (supaAdmin) {
+        try {
+          const { data: inserted, error: insertErr } = await supaAdmin.from('indicador_imagens').insert({ url, storage_path: dest });
+          if (!insertErr && inserted && inserted[0]) return res.status(201).json({ ok: true, imagem: inserted[0] });
+          console.warn('Supabase insert image after fallback returned error or no data, falling back to local response:', insertErr);
+        } catch (e) {
+          console.warn('Supabase insert image after fallback failed, returning local resource:', e.message || e);
+        }
+      }
+      return res.status(201).json({ ok: true, imagem: { url } });
+    }
+
+    const publicUrl = supaAdmin.storage.from(bucket).getPublicUrl(uploadData.path).publicURL;
+    const { data: inserted, error: insertErr } = await supaAdmin.from('indicador_imagens').insert({ url: publicUrl, storage_path: uploadData.path });
+    if (insertErr) throw insertErr;
+    return res.status(201).json({ ok: true, imagem: inserted[0] });
+  } catch (error) {
+    console.error('Erro POST /api/indicadores/imagens', error.message || error);
+    return res.status(500).json({ ok: false, error: 'Erro ao enviar imagem.' });
+  }
+});
+
+// DELETE imagem
+app.delete('/api/indicadores/imagens/:id', authenticateUser, requireAdmin, async (req, res) => {
+  try {
+    const id = req.params.id;
+    const { enabled, admin } = getSupabaseClients();
+    if (!enabled || !admin) return res.status(500).json({ ok: false, error: 'Supabase não configurado.' });
+
+    const { data: img } = await admin.from('indicador_imagens').select('*').eq('id', id).maybeSingle();
+    if (!img) return res.status(404).json({ ok: false, error: 'Imagem não encontrada.' });
+
+    if (img.storage_path) {
+      const bucket = process.env.SUPABASE_STORAGE_BUCKET || 'public';
+      await admin.storage.from(bucket).remove([img.storage_path]);
+    }
+
+    const { error } = await admin.from('indicador_imagens').delete().eq('id', id);
+    if (error) throw error;
+
+    return res.status(200).json({ ok: true });
+  } catch (error) {
+    console.error('Erro DELETE /api/indicadores/imagens/:id', error.message || error);
+    return res.status(500).json({ ok: false, error: 'Erro ao excluir imagem.' });
   }
 });
 
