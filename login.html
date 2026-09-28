@@ -65,7 +65,16 @@
                     </div>
                     <div class="login-field">
                         <label for="password">Senha</label>
-                        <input type="password" id="password" placeholder="Digite sua senha" required>
+                        <div class="password-input-wrap">
+                            <input type="password" id="password" placeholder="Digite sua senha" required>
+                            <button type="button" class="password-toggle" data-target="password" aria-label="Mostrar senha" aria-pressed="false">
+                                <svg viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/>
+                                    <circle cx="12" cy="12" r="3.2"/>
+                                    <path class="eye-slashed" d="M4 4l16 16"/>
+                                </svg>
+                            </button>
+                        </div>
                     </div>
                         <!-- Campo de código de admin removido: permissões são validadas no backend -->
                     <button type="submit" class="btn-primary">Entrar</button>
@@ -171,6 +180,20 @@
 
             emailInput.addEventListener('input', validateEmailField);
             emailInput.addEventListener('blur', validateEmailField);
+
+            document.querySelectorAll('.password-toggle').forEach(function (toggleButton) {
+                toggleButton.addEventListener('click', function () {
+                    const targetId = this.getAttribute('data-target');
+                    const passwordField = document.getElementById(targetId);
+                    if (!passwordField) return;
+
+                    const showPassword = passwordField.type === 'password';
+                    passwordField.type = showPassword ? 'text' : 'password';
+                    this.setAttribute('aria-label', showPassword ? 'Ocultar senha' : 'Mostrar senha');
+                    this.setAttribute('aria-pressed', String(showPassword));
+                    this.classList.toggle('is-hidden', !showPassword);
+                });
+            });
 
             loginForm.addEventListener('submit', async function (event) {
                 event.preventDefault();

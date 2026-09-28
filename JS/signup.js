@@ -65,6 +65,20 @@ async function registerUser(payload) {
   return data;
 }
 
+document.querySelectorAll('.password-toggle').forEach((toggleButton) => {
+  toggleButton.addEventListener('click', () => {
+    const targetId = toggleButton.getAttribute('data-target');
+    const passwordField = document.getElementById(targetId);
+    if (!passwordField) return;
+
+    const showPassword = passwordField.type === 'password';
+    passwordField.type = showPassword ? 'text' : 'password';
+    toggleButton.setAttribute('aria-label', showPassword ? 'Ocultar senha' : 'Mostrar senha');
+    toggleButton.setAttribute('aria-pressed', String(showPassword));
+    toggleButton.classList.toggle('is-hidden', !showPassword);
+  });
+});
+
 signupForm.addEventListener('submit', async (event) => {
   event.preventDefault();
 

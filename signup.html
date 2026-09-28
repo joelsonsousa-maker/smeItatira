@@ -70,11 +70,29 @@
                     </div>
                     <div class="login-field">
                         <label for="password">Senha</label>
-                        <input type="password" id="password" placeholder="Mínimo 8 caracteres" required>
+                        <div class="password-input-wrap">
+                            <input type="password" id="password" placeholder="Mínimo 8 caracteres" required>
+                            <button type="button" class="password-toggle" data-target="password" aria-label="Mostrar senha" aria-pressed="false">
+                                <svg viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/>
+                                    <circle cx="12" cy="12" r="3.2"/>
+                                    <path class="eye-slashed" d="M4 4l16 16"/>
+                                </svg>
+                            </button>
+                        </div>
                     </div>
                     <div class="login-field">
                         <label for="confirm-password">Confirmar senha</label>
-                        <input type="password" id="confirm-password" placeholder="Repita sua senha" required>
+                        <div class="password-input-wrap">
+                            <input type="password" id="confirm-password" placeholder="Repita sua senha" required>
+                            <button type="button" class="password-toggle" data-target="confirm-password" aria-label="Mostrar senha" aria-pressed="false">
+                                <svg viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/>
+                                    <circle cx="12" cy="12" r="3.2"/>
+                                    <path class="eye-slashed" d="M4 4l16 16"/>
+                                </svg>
+                            </button>
+                        </div>
                         <div class="input-error" id="confirm-error" aria-live="polite"></div>
                     </div>
                     <button type="submit" class="btn-primary">Criar conta</button>
