@@ -9,22 +9,30 @@ const state = {
   editImageUrl: null,
 };
 
-document.addEventListener('DOMContentLoaded', () => {
+let currentUser = null;
+let isAdmin = false;
+
+document.addEventListener('DOMContentLoaded', async () => {
+  // Verifica sessão no backend para obter role autoritativa (não confiar em localStorage para role)
+  const token = (() => { try { return localStorage.getItem('sme_session_token') || localStorage.getItem('token'); } catch (e) { return null; } })();
+  if (token) {
+    try {
+      const resp = await fetch((window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:3000' : '') + '/api/auth/me', { headers: { Authorization: `Bearer ${token}` } });
+      if (resp.ok) {
+        const body = await resp.json();
+        if (body.ok && body.user) {
+          currentUser = body.user;
+          isAdmin = body.user.role === 'admin';
+        }
+      }
+    } catch (e) {
+      console.warn('Falha ao verificar sessão:', e.message || e);
+    }
+  }
+
   initializeGestaoPage();
   loadMembros();
 });
-
-function getCurrentUser() {
-  try {
-    const stored = localStorage.getItem('sme_user');
-    return stored ? JSON.parse(stored) : null;
-  } catch (err) {
-    return null;
-  }
-}
-
-const currentUser = getCurrentUser();
-const isAdmin = Boolean(currentUser && currentUser.isAdmin);
 
 function initializeGestaoPage() {
   const addButton = document.getElementById('open-add-button');

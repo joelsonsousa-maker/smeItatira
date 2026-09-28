@@ -68,13 +68,7 @@
                         <label for="password">Senha</label>
                         <input type="password" id="password" placeholder="Digite sua senha" required>
                     </div>
-                    <div id="admin-code-toggle" class="admin-code-toggle">
-                        <button type="button" id="show-admin-code" class="admin-code-toggle-btn">Se você é administrador, clique aqui</button>
-                    </div>
-                    <div id="admin-code-field" class="login-field admin-code-field hidden">
-                        <label for="admin-code">Código de administrador (opcional)</label>
-                        <input type="text" id="admin-code" placeholder="Digite o código para admin">
-                    </div>
+                        <!-- Campo de código de admin removido: permissões são validadas no backend -->
                     <button type="submit" class="btn-primary">Entrar</button>
                 </form>
 
@@ -123,189 +117,112 @@
         </div>
     </footer>
     
-    <script>
-        const loginForm = document.getElementById('login-form');
-        const messageBox = document.getElementById('login-message');
-        const emailInput = document.getElementById('email');
-        const passwordInput = document.getElementById('password');
-        const emailError = document.getElementById('email-error');
-        const userDetailsBox = document.getElementById('user-details');
-        const showAdminCodeBtn = document.getElementById('show-admin-code');
-        const adminCodeField = document.getElementById('admin-code-field');
-        const adminCodeInput = document.getElementById('admin-code');
-        const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-            ? 'http://localhost:3000'
-            : '';
+        <script>
+        (function () {
+            const loginForm = document.getElementById('login-form');
+            const messageBox = document.getElementById('login-message');
+            const emailInput = document.getElementById('email');
+            const passwordInput = document.getElementById('password');
+            const emailError = document.getElementById('email-error');
+            const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+                ? 'http://localhost:3000'
+                : '';
 
-        function isValidEmail(email) {
-            return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-        }
-
-        function validateEmailField() {
-            const value = emailInput.value.trim();
-            if (!value || !isValidEmail(value)) {
-                emailError.textContent = 'Digite um e-mail válido';
-                emailInput.classList.add('input-invalid');
-                return false;
+            function isValidEmail(email) {
+                return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
             }
-            emailError.textContent = '';
-            emailInput.classList.remove('input-invalid');
-            return true;
-        }
 
-        function getSearchParam(name) {
-            return new URLSearchParams(window.location.search).get(name);
-        }
-
-        function getStoredUser() {
-            try {
-                const raw = localStorage.getItem('sme_user') || localStorage.getItem('user');
-                return raw ? JSON.parse(raw) : null;
-            } catch (e) {
-                return null;
+            function updateLoginMessage(text, status) {
+                messageBox.textContent = text;
+                messageBox.className = `login-message ${status || ''}`.trim();
             }
-        }
 
-        function saveUser(user) {
-            try {
-                const jsonUser = JSON.stringify(user);
-                // Grava em ambos os nomes de chave para compatibilidade total
-                localStorage.setItem('sme_user', jsonUser);
-                localStorage.setItem('user', jsonUser);
-            } catch (e) {
-                console.warn('Não foi possível salvar o usuário localmente:', e);
+            function validateEmailField() {
+                const value = emailInput.value.trim();
+                if (!value || !isValidEmail(value)) {
+                    emailError.textContent = 'Digite um e-mail válido';
+                    emailInput.classList.add('input-invalid');
+                    return false;
+                }
+                emailError.textContent = '';
+                emailInput.classList.remove('input-invalid');
+                return true;
             }
-        }
 
-        function saveSession(token) {
-            try {
-                // Grava em ambos os nomes de chave para o chat conseguir autenticar
-                localStorage.setItem('sme_session_token', token);
-                localStorage.setItem('token', token);
-            } catch (e) {
-                console.warn('Não foi possível salvar o token da sessão:', e);
-            }
-        }
-
-        function renderUserDetails(user) {
-            if (!user) {
-                userDetailsBox.textContent = '';
-                return;
-            }
-            const isUserAdmin = user.isAdmin || user.role === 'admin';
-            userDetailsBox.innerHTML = `
-                <div><strong>Usuário:</strong> ${user.name || user.nome || 'Usuário'}</div>
-                <div><strong>E-mail:</strong> ${user.email}</div>
-                <div><strong>Perfil:</strong> ${isUserAdmin ? 'Administrador' : 'Visitante'}</div>
-            `;
-        }
-
-        function showRegistrationSuccessMessage() {
-            if (getSearchParam('registered') === '1') {
-                updateLoginMessage('Conta criada com sucesso. Faça login para continuar.', 'success');
-                history.replaceState(null, '', window.location.pathname);
-            }
-        }
-
-        showRegistrationSuccessMessage();
-
-        function updateLoginMessage(text, status) {
-            messageBox.textContent = text;
-            messageBox.className = `login-message ${status || ''}`.trim();
-        }
-
-        async function authenticateUser(payload) {
-            try {
+            async function authenticateUser(payload) {
                 const response = await fetch(`${API_BASE}/api/auth/login`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
-
                 const data = await response.json();
-                if (!response.ok || !data.ok) {
-                    throw new Error(data.error || 'Falha ao autenticar usuário');
+                if (!response.ok || !data.ok) throw new Error(data.error || 'Falha ao autenticar usuário');
+                return data;
+            }
+
+            async function fetchMe(token) {
+                try {
+                    const resp = await fetch(`${API_BASE}/api/auth/me`, {
+                        headers: { Authorization: `Bearer ${token}` }
+                    });
+                    if (!resp.ok) return null;
+                    const body = await resp.json();
+                    return body.ok ? body.user : null;
+                } catch (e) { return null; }
+            }
+
+            emailInput.addEventListener('input', validateEmailField);
+            emailInput.addEventListener('blur', validateEmailField);
+
+            loginForm.addEventListener('submit', async function (event) {
+                event.preventDefault();
+                const email = emailInput.value.trim();
+                const password = passwordInput.value;
+
+                if (!validateEmailField()) {
+                    updateLoginMessage('Digite um e-mail válido para continuar.', 'error');
+                    emailInput.focus();
+                    return;
                 }
 
-                return data;
-            } catch (error) {
-                console.error('Erro ao autenticar usuário:', error);
-                throw error;
-            }
-        }
+                if (!password) {
+                    updateLoginMessage('Digite sua senha para continuar.', 'error');
+                    passwordInput.focus();
+                    return;
+                }
 
-        showAdminCodeBtn.addEventListener('click', function () {
-            adminCodeField.classList.remove('hidden');
-            adminCodeField.classList.add('visible');
-            adminCodeInput.focus();
-            showAdminCodeBtn.textContent = 'Código de administrador ativado';
-        });
+                try {
+                    updateLoginMessage('Autenticando...', 'info');
+                    const result = await authenticateUser({ email, password });
 
-        emailInput.addEventListener('input', validateEmailField);
-        emailInput.addEventListener('blur', validateEmailField);
+                    // Armazena apenas o token de sessão; nunca gravar role no localStorage
+                    try { localStorage.setItem('sme_session_token', result.token); localStorage.setItem('token', result.token); } catch (e) {}
 
-        loginForm.addEventListener('submit', async function (event) {
-            event.preventDefault();
+                    // Consulta autoritativa do perfil (roles devem ser validadas no backend via /api/auth/me)
+                    const me = await fetchMe(result.token);
 
-            const email = document.getElementById('email').value.trim();
-            const password = passwordInput.value;
-            const adminCode = document.getElementById('admin-code').value.trim();
+                    updateLoginMessage(`Bem-vindo ${me?.name || email.split('@')[0]}! Redirecionando...`, 'success');
+                    setTimeout(() => { window.location.href = 'index.html'; }, 800);
+                } catch (error) {
+                    updateLoginMessage(error.message || 'Não foi possível entrar no momento. Tente novamente.', 'error');
+                }
+            });
 
-            if (!validateEmailField()) {
-                updateLoginMessage('Digite um e-mail válido para continuar.', 'error');
-                emailInput.focus();
-                return;
-            }
-
-            if (!password) {
-                updateLoginMessage('Digite sua senha para continuar.', 'error');
-                passwordInput.focus();
-                return;
-            }
-
-            try {
-                updateLoginMessage('Autenticando...', 'info');
-
-                const result = await authenticateUser({
-                    email,
-                    password,
-                    adminCode
-                });
-
-                const isUserAdmin = result.user.role === 'admin' || result.user.isAdmin === true;
-
-                const user = {
-                    id: result.user.id,
-                    name: result.user.name || result.user.nome || email.split('@')[0],
-                    email: result.user.email,
-                    role: isUserAdmin ? 'admin' : 'usuario',
-                    isAdmin: isUserAdmin
-                };
-
-                saveUser(user);
-                saveSession(result.token);
-                renderUserDetails(user);
-
-                updateLoginMessage(`Bem-vindo ${user.name}! Agora você está conectado como ${user.isAdmin ? 'Administrador' : 'Visitante'}. Redirecionando...`, 'success');
-
-                setTimeout(() => {
-                    window.location.href = 'index.html';
-                }, 800);
-
-            } catch (error) {
-                updateLoginMessage(error.message || 'Não foi possível entrar no momento. Tente novamente.', 'error');
-            }
-
-        });
-
-        document.addEventListener('DOMContentLoaded', function () {
-            const currentUser = getStoredUser();
-            if (currentUser) {
-                renderUserDetails(currentUser);
-                updateLoginMessage('Você já está conectado. Clique em qualquer página para continuar.', 'success');
-            }
-        });
-    </script>
+            // Se já houver um token armazenado, verifica sessão atual
+            document.addEventListener('DOMContentLoaded', async function () {
+                const token = localStorage.getItem('sme_session_token') || localStorage.getItem('token');
+                if (!token) return;
+                updateLoginMessage('Verificando sessão...', 'info');
+                const me = await fetchMe(token);
+                if (me) {
+                    updateLoginMessage('Você já está conectado. Clique em qualquer página para continuar.', 'success');
+                } else {
+                    try { localStorage.removeItem('sme_session_token'); localStorage.removeItem('token'); } catch (e) {}
+                    updateLoginMessage('', '');
+                }
+            });
+        })();
+        </script>
     <style>
         .admin-code-toggle {
             margin-bottom: 0.8rem;

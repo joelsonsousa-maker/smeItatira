@@ -1,12 +1,8 @@
 // Indicadores front-end: files + gallery with simple role checks and localStorage persistence
 
 (function(){
-  const ROLE_KEY = 'sme_user_role'; // set to 'admin' for admin
-
-  function getUserRole(){
-    // Try window global, then localStorage, default 'user'
-    return window.USER_ROLE || localStorage.getItem(ROLE_KEY) || 'user';
-  }
+  // server-driven admin flag (populated on DOMContentLoaded)
+  window.__INDICADORES_IS_ADMIN = false;
 
   // Files area
   const filesArea = document.getElementById('files-area');
@@ -131,11 +127,9 @@
   }
 
   function isAdmin(){
-    // If explicit admin role is set
-    if (getUserRole()==='admin') return true;
-    // If no authentication info present (for testing), show admin controls by default
-    const hasSession = !!(localStorage.getItem('sme_session_token') || localStorage.getItem('sme_user'));
-    if (!hasSession) return true;
+    // Priority: server-driven flag
+    if (window.__INDICADORES_IS_ADMIN) return true;
+    // no localStorage fallback: trust only server-provided flag
     return false;
   }
 
@@ -220,8 +214,21 @@
 
   // init
   loadState();
-  document.addEventListener('DOMContentLoaded', ()=>{
-    // show admin controls if admin (or no auth present -> testing)
+  document.addEventListener('DOMContentLoaded', async ()=>{
+    // Query backend for authoritative profile
+    try {
+      const token = localStorage.getItem('sme_session_token') || localStorage.getItem('token');
+      if (token) {
+        const resp = await fetch((window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:3000' : '') + '/api/auth/me', { headers: { Authorization: `Bearer ${token}` } });
+        if (resp.ok) {
+          const body = await resp.json();
+          if (body.ok && body.user && body.user.role === 'admin') {
+            window.__INDICADORES_IS_ADMIN = true;
+          }
+        }
+      }
+    } catch (e) { console.warn('Falha ao recuperar perfil:', e); }
+
     if(isAdmin()){
       filesAdminActions && (filesAdminActions.style.display='flex');
       imagesAdminActions && (imagesAdminActions.style.display='flex');
@@ -230,7 +237,6 @@
     renderImages();
   });
 
-  // expose role helper for quick testing
-  window.setSmeRole = function(r){ localStorage.setItem(ROLE_KEY, r); location.reload(); };
+  // no local-storage role helpers — use backend `/api/auth/me` instead
 
 })();

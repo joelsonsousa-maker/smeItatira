@@ -96,15 +96,19 @@
             let messages = [];
             let selectedConversation = null;
 
-            function getCurrentUser() {
+            async function fetchCurrentUser() {
                 try {
-                    const raw = localStorage.getItem('sme_user') || localStorage.getItem('user');
-                    if (!raw) return null;
-                    const u = JSON.parse(raw);
-                    return {
-                        ...u,
-                        isAdmin: u.role === 'admin' || u.isAdmin === true
-                    };
+                    const token = localStorage.getItem('sme_session_token') || localStorage.getItem('token');
+                    if (!token) return null;
+                    const resp = await fetch(`${API_BASE}/api/auth/me`, { headers: { Authorization: `Bearer ${token}` } });
+                    if (!resp.ok) return null;
+                    const body = await resp.json();
+                    if (!body.ok || !body.user) return null;
+                    const u = body.user;
+                    // normaliza propriedades esperadas pelo front-end
+                    u.role = u.role || (u.profile && u.profile.perfil) || 'usuario';
+                    u.isAdmin = (u.role === 'admin');
+                    return u;
                 } catch (error) {
                     return null;
                 }
@@ -127,19 +131,11 @@
             }
 
             async function loadMessages() {
-                const user = getCurrentUser();
-                if (!user) {
-                    render();
-                    return;
-                }
+                const user = await fetchCurrentUser();
+                if (!user) { render(); return; }
 
                 try {
-                    const response = await fetch(`${API_BASE}/api/messages`, {
-                        headers: {
-                            ...getAuthHeaders(),
-                            'Content-Type': 'application/json'
-                        }
-                    });
+                    const response = await fetch(`${API_BASE}/api/messages`, { headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' } });
 
                     if (response.status === 401) {
                         showNotice(ROOT, 'Sua sessão expirou. Faça login novamente.');
@@ -152,12 +148,43 @@
 
                     const data = await response.json();
                     messages = Array.isArray(data) ? data : [];
-                    render();
+                    await render();
                 } catch (error) {
                     console.error('Erro ao carregar mensagens:', error);
                     render();
                 }
             }
+
+            // Initialize SSE connection for real-time updates
+            function initMessageStream() {
+                const token = localStorage.getItem('sme_session_token') || localStorage.getItem('token');
+                if (!token || typeof EventSource === 'undefined') return null;
+                try {
+                    const es = new EventSource(`${API_BASE}/api/messages/stream?token=${encodeURIComponent(token)}`);
+                    es.addEventListener('message', async (ev) => {
+                        try {
+                            const data = JSON.parse(ev.data);
+                            // normalize record shape to match existing messages array
+                            const msg = {
+                                id: data.id || data.id,
+                                usuario_id: data.user_id || data.usuario_id || data.usuario || '',
+                                usuario_nome: data.user_name || data.usuario_nome || data.usuario_nome || '',
+                                conversa_id: data.conversation_id || data.conversa_id || data.conversa_id || '',
+                                texto: data.content || data.texto || data.texto || '',
+                                criado_em: data.created_at || data.criado_em || data.criado_em || new Date().toISOString()
+                            };
+                            messages.push(msg);
+                            await render();
+                        } catch (e) { /* ignore parse errors */ }
+                    });
+                    es.addEventListener('error', (e) => {
+                        // reconnect logic is handled by EventSource automatically
+                    });
+                    return es;
+                } catch (e) { return null; }
+            }
+
+            let messagesEventSource = null;
 
             function showNotice(container, text) {
                 const notice = document.createElement('div');
@@ -167,8 +194,8 @@
                 container.prepend(notice);
             }
 
-            function render() {
-                const user = getCurrentUser();
+            async function render() {
+                const user = await fetchCurrentUser();
                 ROOT.innerHTML = '';
 
                 const toolbar = document.createElement('div');
@@ -374,6 +401,7 @@
             }
 
             loadMessages();
+            messagesEventSource = initMessageStream();
         })();
     </script>
     <script src="JS/mobile-navbar.js"></script>

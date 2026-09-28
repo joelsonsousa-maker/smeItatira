@@ -40,6 +40,7 @@ const multer = require('multer');
 const fs = require('fs');
 
 const inMemoryMessages = [];
+const messageSseClients = new Set(); // each item: { res, user }
 
 // Middlewares de Rate Limit simplificados
 const loginRateLimiter = (req, res, next) => next();
@@ -316,14 +317,15 @@ app.get(['/api/messages', '/messages'], authenticateUser, async (req, res) => {
     }
 
     let query = dbClient
-      .from('messages')
+      .from('mensagens')
       .select('*')
-      .order('created_at', { ascending: true });
+      .order('criado_em', { ascending: true });
 
     // Se não for admin, filtra pela conversa do próprio usuário
     if (req.user.role !== 'admin') {
       const myId = req.user.email || req.user.id;
-      query = query.eq('conversation_id', myId);
+      // aceita tanto conversation_id quanto conversa_id no filtro
+      query = query.or(`conversation_id.eq.${myId},conversa_id.eq.${myId}`);
     }
 
     const { data, error } = await query;
@@ -336,7 +338,7 @@ app.get(['/api/messages', '/messages'], authenticateUser, async (req, res) => {
     const mappedMessages = (data || []).map((msg) => ({
       id: msg.id,
       usuario_id: msg.user_id || msg.usuario_id || '',
-      usuario_nome: msg.user_name || msg.usuario_nome || 'Usuário',
+      usuario_nome: msg.user_name || msg.usuario_nome || msg.usuario_nome || 'Usuário',
       conversa_id: msg.conversation_id || msg.conversa_id || '',
       texto: msg.content || msg.texto || '',
       criado_em: msg.created_at || msg.criado_em
@@ -368,30 +370,65 @@ app.post(['/api/messages', '/messages'], authenticateUser, messageRateLimiter, a
     const { enabled, admin, client } = getSupabaseClients();
     const dbClient = admin || client;
 
+    // Persistiremos no Supabase na tabela `mensagens` com colunas em português
     const payload = {
-      user_id: req.user.id || 'admin',
-      user_name: req.user.name || (req.user.role === 'admin' ? 'Administrador' : 'Usuário'),
-      conversation_id: conversationId,
-      content: text,
-      created_at: new Date().toISOString()
+      usuario_id: req.user.id || 'admin',
+      usuario_nome: req.user.name || (req.user.role === 'admin' ? 'Administrador' : 'Usuário'),
+      conversa_id: conversationId,
+      texto: text,
+      criado_em: new Date().toISOString()
     };
 
+    // Persist message (either in-memory fallback or Supabase)
     if (!enabled || !dbClient) {
-      inMemoryMessages.push({
+      const stored = {
         id: `${Date.now()}`,
         usuario_id: payload.user_id,
         usuario_nome: payload.user_name,
         conversa_id: payload.conversation_id,
         texto: payload.content,
         criado_em: payload.created_at
-      });
+      };
+      inMemoryMessages.push(stored);
+      // broadcast to SSE clients
+      for (const cl of messageSseClients) {
+        try {
+          const target = cl.user;
+          if (!target) continue;
+          // if client is admin, send all; otherwise send only messages for their conversation
+          if (target.role === 'admin' || String(stored.conversa_id) === String(target.email) || String(stored.conversa_id) === String(target.id)) {
+            cl.res.write(`data: ${JSON.stringify(stored)}\n\n`);
+          }
+        } catch (e) { /* ignore client errors */ }
+      }
+
       return res.status(201).json({ ok: true, message: 'Mensagem enviada com sucesso.' });
     }
 
-    const { error } = await dbClient.from('messages').insert(payload);
+    const { data: inserted, error } = await dbClient.from('mensagens').insert(payload).select();
     if (error) {
       console.error('Erro ao inserir no Supabase:', error);
       throw error;
+    }
+
+    const stored = (inserted && inserted[0]) ? inserted[0] : {
+      id: `${Date.now()}`,
+      usuario_id: payload.usuario_id,
+      usuario_nome: payload.usuario_nome,
+      conversa_id: payload.conversa_id,
+      texto: payload.texto,
+      criado_em: payload.criado_em
+    };
+
+    // broadcast to SSE clients
+    for (const cl of messageSseClients) {
+      try {
+        const target = cl.user;
+        if (!target) continue;
+        if (target.role === 'admin' || String(stored.conversation_id || stored.conversa_id) === String(target.email) || String(stored.conversation_id || stored.conversa_id) === String(target.id)) {
+          cl.res.write(`data: ${JSON.stringify(stored)}\n\n`);
+        }
+      } catch (e) { /* ignore client errors */ }
     }
 
     return res.status(201).json({ ok: true, message: 'Mensagem enviada com sucesso.' });
@@ -399,6 +436,65 @@ app.post(['/api/messages', '/messages'], authenticateUser, messageRateLimiter, a
     console.error('Erro ao enviar mensagem:', error);
     return res.status(500).json({ ok: false, error: 'Erro interno ao enviar mensagem.' });
   }
+});
+
+// Server-Sent Events for real-time messages
+app.get(['/api/messages/stream', '/messages/stream'], async (req, res) => {
+  // Allow connection to stay open
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders && res.flushHeaders();
+
+  // Authenticate token from query or Authorization header
+  const token = (req.query && req.query.token) || (req.headers['authorization'] ? (req.headers['authorization'].startsWith('Bearer ') ? req.headers['authorization'].split(' ')[1] : req.headers['authorization']) : null);
+  let user = null;
+
+  if (!token) {
+    res.write(': no token\n\n');
+    return res.end();
+  }
+
+  // Try local JWT
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    user = decoded;
+  } catch (err) {
+    // try Supabase auth lookup
+    const { enabled, client, admin } = getSupabaseClients();
+    if (enabled && client) {
+      try {
+        const { data: { user: authUser }, error } = await client.auth.getUser(token);
+        if (!error && authUser) {
+          let role = 'usuario';
+          if (admin) {
+            const { data: profile } = await admin.from('profiles').select('perfil, nome').eq('id', authUser.id).maybeSingle();
+            if (profile) {
+              role = profile.perfil || 'usuario';
+              authUser.user_metadata = { ...authUser.user_metadata, nome: profile.nome };
+            }
+          }
+          user = { id: authUser.id, email: authUser.email, name: authUser.user_metadata?.nome || authUser.email?.split('@')[0], role };
+        }
+      } catch (e) { /* ignore */ }
+    }
+  }
+
+  if (!user) {
+    res.write(': invalid token\n\n');
+    return res.end();
+  }
+
+  // keep connection
+  const clientObj = { res, user };
+  messageSseClients.add(clientObj);
+
+  // send a ping to confirm
+  res.write(`data: ${JSON.stringify({ type: 'connected' })}\n\n`);
+
+  req.on('close', () => {
+    try { messageSseClients.delete(clientObj); } catch (e) {}
+  });
 });
 
 // --- Indicadores endpoints (documentos e imagens) ---

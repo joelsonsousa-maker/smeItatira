@@ -51,12 +51,10 @@ class MobileNavbar {
     if (document.querySelector('.floating-chat')) return; // already added
 
     const chatLink = document.createElement('a');
-    // if user is not logged in, direct to login page instead of chat
-    let _userRaw = null;
-    try { _userRaw = localStorage.getItem('sme_user'); } catch (e) { _userRaw = null; }
-    let _user = null;
-    try { _user = _userRaw ? JSON.parse(_userRaw) : null; } catch (e) { _user = null; }
-    chatLink.href = (_user && _user.email) ? 'chat.html' : 'login.html';
+    // decide target by validating session on backend (do not rely on stored role)
+    const token = (() => { try { return localStorage.getItem('sme_session_token') || localStorage.getItem('token'); } catch (e) { return null; } })();
+    if (!token) { chatLink.href = 'login.html'; }
+    else { chatLink.href = 'chat.html'; }
     chatLink.className = 'floating-chat';
     chatLink.setAttribute('aria-label', 'Abrir Chat SME');
     chatLink.style.position = 'fixed';
@@ -143,18 +141,26 @@ class MobileNavbar {
   }
 
   // Profile handling: replace Login link with Perfil when user is stored
-  function applyProfileToNav() {
-    let raw = null;
-    try { raw = localStorage.getItem('sme_user'); } catch (e) { raw = null; }
-    if (!raw) return;
-    let user = null;
-    try { user = JSON.parse(raw); } catch (e) { return; }
-
+  async function applyProfileToNav() {
     const loginAnchor = document.querySelector('.nav-list a[href*="login.html"]');
     if (!loginAnchor) return;
-
     const li = loginAnchor.closest('li') || loginAnchor.parentElement;
     if (!li) return;
+
+    const token = (() => { try { return localStorage.getItem('sme_session_token') || localStorage.getItem('token'); } catch (e) { return null; } })();
+    if (!token) return; // not logged in
+
+    // fetch authoritative user info from backend
+    let user = null;
+    try {
+      const resp = await fetch((window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:3000' : '') + '/api/auth/me', { headers: { Authorization: `Bearer ${token}` } });
+      if (resp.ok) {
+        const body = await resp.json();
+        user = body.ok ? body.user : null;
+      }
+    } catch (e) { user = null; }
+
+    if (!user) return;
 
     // create profile menu
     const profileButton = document.createElement('button');
@@ -170,7 +176,7 @@ class MobileNavbar {
 
     const info = document.createElement('div');
     info.className = 'profile-info';
-    const roleHtml = user.isAdmin
+    const roleHtml = (user.role === 'admin')
       ? '<div class="profile-role" style="color:#a2d94c;font-weight:700;margin-bottom:6px;">Administrador</div>'
       : '<div class="profile-role" style="color:#4a90e2;font-weight:700;margin-bottom:6px;">Usuário</div>';
     info.innerHTML = `${roleHtml}<strong>${escapeHtml(user.name || '')}</strong><br><small>${escapeHtml(user.email || '')}</small>`;
@@ -205,7 +211,7 @@ class MobileNavbar {
     });
 
     logout.addEventListener('click', function () {
-      try { localStorage.removeItem('sme_user'); } catch (e) {}
+      try { localStorage.removeItem('sme_session_token'); localStorage.removeItem('token'); } catch (e) {}
       window.location.href = 'index.html';
     });
 

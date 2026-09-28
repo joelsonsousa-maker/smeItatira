@@ -188,22 +188,23 @@ function resetAddForm() {
   document.getElementById('birthday-month').value = currentMonth;
 }
 
-function getCurrentUser() {
+async function fetchCurrentUser() {
   try {
-    const raw = localStorage.getItem('sme_user');
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
+    const token = localStorage.getItem('sme_session_token') || localStorage.getItem('token');
+    if (!token) return null;
+    const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+      ? 'http://localhost:3000'
+      : '';
+    const resp = await fetch(`${API_BASE}/api/auth/me`, { headers: { Authorization: `Bearer ${token}` } });
+    if (!resp.ok) return null;
+    const body = await resp.json();
+    return body.ok ? body.user : null;
+  } catch (e) { return null; }
 }
 
-function isAdminUser() {
-  const user = getCurrentUser();
-  return Boolean(user && user.isAdmin);
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-  const isAdmin = isAdminUser();
+document.addEventListener('DOMContentLoaded', async () => {
+  const user = await fetchCurrentUser();
+  const isAdmin = Boolean(user && user.role === 'admin');
 
   if (!isAdmin) {
     addBirthdayButton?.classList.add('hidden');
