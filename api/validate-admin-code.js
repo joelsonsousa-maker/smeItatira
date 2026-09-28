@@ -1,3 +1,5 @@
+const { getSupabaseClients } = require('./supabase');
+
 module.exports = async (req, res) => {
   // Configuração manual de cabeçalhos CORS obrigatórios para requisições externas
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -15,26 +17,60 @@ module.exports = async (req, res) => {
   }
 
   try {
-    // Processa o corpo se ele vier como texto bruto ou stream
+    // Processa o corpo da requisição se vier como string
     let body = req.body;
     if (typeof body === 'string') {
-      body = JSON.parse(body);
+      try {
+        body = JSON.parse(body);
+      } catch (e) {
+        body = {};
+      }
     }
 
-    const adminCode = process.env.ADMIN_CODE;
+    const email = String(body?.email || '').trim().toLowerCase();
 
-    if (!adminCode) {
-      return res.status(500).json({
+    if (!email) {
+      return res.status(400).json({
         valid: false,
-        error: 'Variável ADMIN_CODE não configurada no painel da Vercel.'
+        error: 'E-mail não fornecido para verificação.'
       });
     }
 
-    const providedCode = String(body?.adminCode || '').trim();
-    const valid = providedCode === adminCode;
+    const { enabled, admin, client, reason } = getSupabaseClients();
+    const dbClient = admin || client;
 
-    return res.status(200).json({ valid: valid });
+    if (!enabled || !dbClient) {
+      return res.status(500).json({
+        valid: false,
+        error: reason || 'Não foi possível conectar ao banco de dados.'
+      });
+    }
+
+    // Consulta a tabela profiles no Supabase pelo e-mail
+    const { data: profile, error } = await dbClient
+      .from('profiles')
+      .select('perfil')
+      .eq('email', email)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Erro ao consultar perfil no Supabase:', error.message);
+      return res.status(500).json({
+        valid: false,
+        error: 'Erro ao validar perfil de administrador.'
+      });
+    }
+
+    // Retorna valid: true se o perfil cadastrado no Supabase for 'admin'
+    const isAdmin = profile && profile.perfil === 'admin';
+
+    return res.status(200).json({ valid: isAdmin });
+
   } catch (error) {
-    return res.status(500).json({ valid: false, error: 'Erro interno ao processar requisição.' });
+    console.error('Erro na validação de admin:', error);
+    return res.status(500).json({
+      valid: false,
+      error: 'Erro interno ao processar requisição.'
+    });
   }
 };

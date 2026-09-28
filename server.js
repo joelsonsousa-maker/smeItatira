@@ -3,6 +3,8 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const jwt = require('jsonwebtoken');
+const path = require('path');
+const multer = require('multer');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -29,22 +31,21 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(__dirname));
 
-const validateAdminRoute = require('./api/validate-admin-code');
 const {
   getSupabaseClients,
   syncUserProfile,
   getUserProfile
 } = require('./api/supabase');
-const path = require('path');
-const multer = require('multer');
-const fs = require('fs');
 
 const inMemoryMessages = [];
-const messageSseClients = new Set(); // each item: { res, user }
+const messageSseClients = new Set(); // cada item: { res, user }
 
 // Middlewares de Rate Limit simplificados
 const loginRateLimiter = (req, res, next) => next();
 const messageRateLimiter = (req, res, next) => next();
+
+// Configuração do Multer em Memória (Evita erro EROFS / Escrita em Disco na Vercel)
+const upload = multer({ storage: multer.memoryStorage() });
 
 // Funções de Autenticação Locais e Supabase
 function createSession(user) {
@@ -130,28 +131,26 @@ function requireAdmin(req, res, next) {
   next();
 }
 
-app.all(['/api/validate-admin-code', '/validate-admin-code'], validateAdminRoute);
-
+// Rota de Login Atualizada - Validação de Admin por e-mail no Supabase
 app.post(['/api/auth/login', '/auth/login'], loginRateLimiter, async (req, res) => {
   try {
-    const { email = '', password = '', adminCode = '' } = req.body || {};
+    const { email = '', password = '' } = req.body || {};
+    const trimmedEmail = String(email || '').trim().toLowerCase();
 
-    if (!email || !password) {
+    if (!trimmedEmail || !password) {
       return res.status(400).json({ ok: false, error: 'E-mail e senha são obrigatórios.' });
     }
 
     const { enabled, client, admin, reason } = getSupabaseClients();
     
-    const adminCodeMatches = Boolean(process.env.ADMIN_CODE) && 
-      String(adminCode || '').trim() === String(process.env.ADMIN_CODE).trim();
-
-    let userRole = adminCodeMatches ? 'admin' : 'usuario';
+    let userRole = 'usuario';
     let authUser = null;
     let accessToken = null;
     let displayName = null;
 
     if (enabled && client) {
-      const { data, error } = await client.auth.signInWithPassword({ email, password });
+      // Authenticate directly with Supabase
+      const { data, error } = await client.auth.signInWithPassword({ email: trimmedEmail, password });
       if (error) {
         return res.status(401).json({ ok: false, error: 'Credenciais inválidas.' });
       }
@@ -159,10 +158,11 @@ app.post(['/api/auth/login', '/auth/login'], loginRateLimiter, async (req, res) 
       authUser = data.user;
       accessToken = data.session?.access_token || null;
 
+      // Consult Profile to determine Role
       const profile = await getUserProfile({ admin, userId: authUser.id });
       if (profile) {
         displayName = profile.nome || authUser.email?.split('@')[0] || 'Usuário';
-        if (profile.perfil === 'admin' || adminCodeMatches) {
+        if (profile.perfil === 'admin') {
           userRole = 'admin';
         }
       }
@@ -175,13 +175,14 @@ app.post(['/api/auth/login', '/auth/login'], loginRateLimiter, async (req, res) 
         perfil: userRole
       });
     } else {
-      console.warn('Supabase não configurado, usando sessão local para desenvolvimento.', reason);
+      console.warn('Supabase não configurado.', reason);
+      return res.status(500).json({ ok: false, error: 'Banco de dados não configurado.' });
     }
 
     const user = {
-      id: authUser?.id || `local-${email}`,
-      name: displayName || email.split('@')[0],
-      email,
+      id: authUser?.id || `user-${trimmedEmail}`,
+      name: displayName || trimmedEmail.split('@')[0],
+      email: trimmedEmail,
       role: userRole
     };
 
@@ -218,32 +219,11 @@ app.post(['/api/auth/signup', '/auth/signup'], loginRateLimiter, async (req, res
     const { enabled, admin, reason } = getSupabaseClients();
     if (!enabled || !admin) {
       console.error('Supabase não configurado para cadastro de usuário.', reason);
-      return res.status(500).json({ ok: false, error: 'Problema de configuração do servidor. Tente novamente mais tarde.' });
+      return res.status(500).json({ ok: false, error: 'Problema de configuração do servidor.' });
     }
 
-    const { data: existingProfile, error: existingProfileError } = await admin.from('profiles').select('id').eq('email', trimmedEmail).maybeSingle();
-    if (existingProfileError) {
-      console.error('Erro ao verificar e-mail existente:', existingProfileError.message);
-      return res.status(500).json({ ok: false, error: 'Erro interno ao verificar e-mail.' });
-    }
-
+    const { data: existingProfile } = await admin.from('profiles').select('id').eq('email', trimmedEmail).maybeSingle();
     if (existingProfile) {
-      return res.status(409).json({ ok: false, error: 'Este e-mail já está cadastrado.' });
-    }
-
-    let existingAuth = null;
-    try {
-      const { data: users, error: listError } = await admin.auth.admin.listUsers({ query: trimmedEmail, limit: 1 });
-      if (listError) {
-        console.warn('Falha ao listar usuários para pré-validação:', listError.message);
-      } else if (users?.users?.length) {
-        existingAuth = users.users.find((user) => user.email?.toLowerCase() === trimmedEmail);
-      }
-    } catch (error) {
-      console.warn('Erro ao consultar auth.users:', error.message);
-    }
-
-    if (existingAuth) {
       return res.status(409).json({ ok: false, error: 'Este e-mail já está cadastrado.' });
     }
 
@@ -256,15 +236,10 @@ app.post(['/api/auth/signup', '/auth/signup'], loginRateLimiter, async (req, res
 
     if (signUpError) {
       console.error('Erro ao criar usuário no Supabase Auth:', signUpError.message);
-      const duplicateMessage = /already exists|duplicate/i.test(signUpError.message) ? 'Este e-mail já está cadastrado.' : 'Não foi possível criar o cadastro.';
-      return res.status(409).json({ ok: false, error: duplicateMessage });
+      return res.status(409).json({ ok: false, error: 'Não foi possível criar o cadastro.' });
     }
 
     const authUser = signUpData.user;
-    if (!authUser?.id) {
-      return res.status(500).json({ ok: false, error: 'Falha ao criar o usuário.' });
-    }
-
     const profilePayload = {
       id: authUser.id,
       nome: nome.trim(),
@@ -272,12 +247,7 @@ app.post(['/api/auth/signup', '/auth/signup'], loginRateLimiter, async (req, res
       perfil: 'usuario'
     };
 
-    const { error: profileInsertError } = await admin.from('profiles').insert(profilePayload);
-    if (profileInsertError) {
-      console.error('Erro ao gravar perfil de usuário:', profileInsertError.message);
-      await admin.auth.admin.deleteUser(authUser.id).catch(() => null);
-      return res.status(500).json({ ok: false, error: 'Não foi possível salvar o perfil do usuário.' });
-    }
+    await admin.from('profiles').insert(profilePayload);
 
     const user = {
       id: authUser.id,
@@ -321,24 +291,18 @@ app.get(['/api/messages', '/messages'], authenticateUser, async (req, res) => {
       .select('*')
       .order('criado_em', { ascending: true });
 
-    // Se não for admin, filtra pela conversa do próprio usuário
     if (req.user.role !== 'admin') {
       const myId = req.user.email || req.user.id;
-      // aceita tanto conversation_id quanto conversa_id no filtro
       query = query.or(`conversation_id.eq.${myId},conversa_id.eq.${myId}`);
     }
 
     const { data, error } = await query;
-    if (error) {
-      console.error('Erro na query do Supabase:', error);
-      throw error;
-    }
+    if (error) throw error;
 
-    // Mapeamento tolerante para aceitar colunas em inglês ou português do banco
     const mappedMessages = (data || []).map((msg) => ({
       id: msg.id,
       usuario_id: msg.user_id || msg.usuario_id || '',
-      usuario_nome: msg.user_name || msg.usuario_nome || msg.usuario_nome || 'Usuário',
+      usuario_nome: msg.user_name || msg.usuario_nome || 'Usuário',
       conversa_id: msg.conversation_id || msg.conversa_id || '',
       texto: msg.content || msg.texto || '',
       criado_em: msg.created_at || msg.criado_em
@@ -370,7 +334,6 @@ app.post(['/api/messages', '/messages'], authenticateUser, messageRateLimiter, a
     const { enabled, admin, client } = getSupabaseClients();
     const dbClient = admin || client;
 
-    // Persistiremos no Supabase na tabela `mensagens` com colunas em português
     const payload = {
       usuario_id: req.user.id || 'admin',
       usuario_nome: req.user.name || (req.user.role === 'admin' ? 'Administrador' : 'Usuário'),
@@ -379,57 +342,21 @@ app.post(['/api/messages', '/messages'], authenticateUser, messageRateLimiter, a
       criado_em: new Date().toISOString()
     };
 
-    // Persist message (either in-memory fallback or Supabase)
     if (!enabled || !dbClient) {
       const stored = {
         id: `${Date.now()}`,
-        usuario_id: payload.user_id,
-        usuario_nome: payload.user_name,
-        conversa_id: payload.conversation_id,
-        texto: payload.content,
-        criado_em: payload.created_at
+        usuario_id: payload.usuario_id,
+        usuario_nome: payload.usuario_nome,
+        conversa_id: payload.conversa_id,
+        texto: payload.texto,
+        criado_em: payload.criado_em
       };
       inMemoryMessages.push(stored);
-      // broadcast to SSE clients
-      for (const cl of messageSseClients) {
-        try {
-          const target = cl.user;
-          if (!target) continue;
-          // if client is admin, send all; otherwise send only messages for their conversation
-          if (target.role === 'admin' || String(stored.conversa_id) === String(target.email) || String(stored.conversa_id) === String(target.id)) {
-            cl.res.write(`data: ${JSON.stringify(stored)}\n\n`);
-          }
-        } catch (e) { /* ignore client errors */ }
-      }
-
       return res.status(201).json({ ok: true, message: 'Mensagem enviada com sucesso.' });
     }
 
     const { data: inserted, error } = await dbClient.from('mensagens').insert(payload).select();
-    if (error) {
-      console.error('Erro ao inserir no Supabase:', error);
-      throw error;
-    }
-
-    const stored = (inserted && inserted[0]) ? inserted[0] : {
-      id: `${Date.now()}`,
-      usuario_id: payload.usuario_id,
-      usuario_nome: payload.usuario_nome,
-      conversa_id: payload.conversa_id,
-      texto: payload.texto,
-      criado_em: payload.criado_em
-    };
-
-    // broadcast to SSE clients
-    for (const cl of messageSseClients) {
-      try {
-        const target = cl.user;
-        if (!target) continue;
-        if (target.role === 'admin' || String(stored.conversation_id || stored.conversa_id) === String(target.email) || String(stored.conversation_id || stored.conversa_id) === String(target.id)) {
-          cl.res.write(`data: ${JSON.stringify(stored)}\n\n`);
-        }
-      } catch (e) { /* ignore client errors */ }
-    }
+    if (error) throw error;
 
     return res.status(201).json({ ok: true, message: 'Mensagem enviada com sucesso.' });
   } catch (error) {
@@ -438,16 +365,14 @@ app.post(['/api/messages', '/messages'], authenticateUser, messageRateLimiter, a
   }
 });
 
-// Server-Sent Events for real-time messages
+// Server-Sent Events para mensagens
 app.get(['/api/messages/stream', '/messages/stream'], async (req, res) => {
-  // Allow connection to stay open
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
   res.flushHeaders && res.flushHeaders();
 
-  // Authenticate token from query or Authorization header
-  const token = (req.query && req.query.token) || (req.headers['authorization'] ? (req.headers['authorization'].startsWith('Bearer ') ? req.headers['authorization'].split(' ')[1] : req.headers['authorization']) : null);
+  const token = (req.query && req.query.token) || (req.headers['authorization'] ? req.headers['authorization'].replace('Bearer ', '') : null);
   let user = null;
 
   if (!token) {
@@ -455,28 +380,22 @@ app.get(['/api/messages/stream', '/messages/stream'], async (req, res) => {
     return res.end();
   }
 
-  // Try local JWT
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    user = decoded;
+    user = jwt.verify(token, JWT_SECRET);
   } catch (err) {
-    // try Supabase auth lookup
     const { enabled, client, admin } = getSupabaseClients();
     if (enabled && client) {
       try {
-        const { data: { user: authUser }, error } = await client.auth.getUser(token);
-        if (!error && authUser) {
+        const { data: { user: authUser } } = await client.auth.getUser(token);
+        if (authUser) {
           let role = 'usuario';
           if (admin) {
             const { data: profile } = await admin.from('profiles').select('perfil, nome').eq('id', authUser.id).maybeSingle();
-            if (profile) {
-              role = profile.perfil || 'usuario';
-              authUser.user_metadata = { ...authUser.user_metadata, nome: profile.nome };
-            }
+            if (profile) role = profile.perfil || 'usuario';
           }
           user = { id: authUser.id, email: authUser.email, name: authUser.user_metadata?.nome || authUser.email?.split('@')[0], role };
         }
-      } catch (e) { /* ignore */ }
+      } catch (e) {}
     }
   }
 
@@ -485,25 +404,16 @@ app.get(['/api/messages/stream', '/messages/stream'], async (req, res) => {
     return res.end();
   }
 
-  // keep connection
   const clientObj = { res, user };
   messageSseClients.add(clientObj);
-
-  // send a ping to confirm
   res.write(`data: ${JSON.stringify({ type: 'connected' })}\n\n`);
 
   req.on('close', () => {
-    try { messageSseClients.delete(clientObj); } catch (e) {}
+    messageSseClients.delete(clientObj);
   });
 });
 
-// --- Indicadores endpoints (documentos e imagens) ---
-// Configuração de upload local temporário via multer (usado quando Supabase Storage não estiver disponível)
-const upload = multer({ dest: path.join(__dirname, 'tmp_uploads') });
-// Forçar uso de storage local (útil em ambientes sem Supabase configurado)
-const FORCE_LOCAL_STORAGE = true;
-
-// GET /api/indicadores -> retorna documentos e imagens
+// GET /api/indicadores
 app.get('/api/indicadores', async (req, res) => {
   try {
     const { enabled, admin, client } = getSupabaseClients();
@@ -513,220 +423,22 @@ app.get('/api/indicadores', async (req, res) => {
       return res.status(200).json({ ok: true, documentos: [], imagens: [] });
     }
 
-    const [{ data: documentos, error: docErr }, { data: imagens, error: imgErr }] = await Promise.all([
+    const [{ data: documentos }, { data: imagens }] = await Promise.all([
       db.from('indicador_documentos').select('*').order('created_at', { ascending: false }),
       db.from('indicador_imagens').select('*').order('display_order', { ascending: true })
     ]);
 
-    if (docErr || imgErr) {
-      console.error('Erro ao buscar indicadores:', docErr || imgErr);
-      throw docErr || imgErr;
-    }
-
     return res.status(200).json({ ok: true, documentos: documentos || [], imagens: imagens || [] });
   } catch (error) {
-    console.error('Erro em GET /api/indicadores:', error.message || error);
+    console.error('Erro em GET /api/indicadores:', error);
     return res.status(500).json({ ok: false, error: 'Erro interno ao carregar indicadores.' });
   }
 });
 
-// POST /api/indicadores/documentos -> upload documento (admin)
-app.post('/api/indicadores/documentos', authenticateUser, requireAdmin, upload.single('file'), async (req, res) => {
-  try {
-    const file = req.file;
-    const descricao = String(req.body.descricao || '').trim();
-    if (!file) return res.status(400).json({ ok: false, error: 'Arquivo é obrigatório.' });
-
-    const allowed = ['.pdf', '.doc', '.docx', '.xls', '.xlsx'];
-    const ext = path.extname(file.originalname).toLowerCase();
-    if (!allowed.includes(ext)) {
-      fs.unlinkSync(file.path);
-      return res.status(400).json({ ok: false, error: 'Tipo de arquivo não permitido.' });
-    }
-
-    const { enabled, admin } = getSupabaseClients();
-    if (FORCE_LOCAL_STORAGE || !enabled || !admin) {
-      // fallback: serve file via public path (move to /uploads)
-      const uploadsDir = path.join(__dirname, '..', 'uploads');
-      if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
-      const dest = path.join(uploadsDir, `${Date.now()}_${file.originalname}`);
-      fs.renameSync(file.path, dest);
-      const url = `/uploads/${path.basename(dest)}`;
-
-      if (admin) {
-        try {
-          const { data, error } = await admin.from('indicador_documentos').insert({ descricao, url, storage_path: dest, tipo: ext.replace('.', '') });
-          if (!error && data && data[0]) return res.status(201).json({ ok: true, documento: data[0] });
-          console.warn('Admin insert returned error or no data, falling back to local response:', error);
-        } catch (e) {
-          console.warn('Admin insert failed, returning local resource:', e.message || e);
-        }
-      }
-
-      return res.status(201).json({ ok: true, documento: { descricao, url, tipo: ext.replace('.', '') } });
-    }
-
-    // Prefer Supabase Storage
-    const { admin: supaAdmin } = getSupabaseClients();
-    const bucket = process.env.SUPABASE_STORAGE_BUCKET || 'public';
-    const storagePath = `indicadores/documentos/${Date.now()}_${file.originalname}`;
-    const fileBuffer = fs.readFileSync(file.path);
-
-    const { data: uploadData, error: uploadErr } = await supaAdmin.storage.from(bucket).upload(storagePath, fileBuffer, { upsert: false, contentType: file.mimetype });
-    // remove temp file
-    fs.unlinkSync(file.path);
-
-    // se falhar no upload (ex: bucket não existe), faz fallback para storage local
-    if (uploadErr) {
-      console.warn('Supabase upload failed, falling back to local storage:', uploadErr.message || uploadErr);
-      const uploadsDir = path.join(__dirname, '..', 'uploads');
-      if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
-      const dest = path.join(uploadsDir, `${Date.now()}_${file.originalname}`);
-      fs.writeFileSync(dest, fileBuffer);
-      const url = `/uploads/${path.basename(dest)}`;
-      if (supaAdmin) {
-        try {
-          const { data: inserted, error: insertErr } = await supaAdmin.from('indicador_documentos').insert({ descricao, url, storage_path: dest, tipo: ext.replace('.', '') });
-          if (!insertErr && inserted && inserted[0]) return res.status(201).json({ ok: true, documento: inserted[0] });
-          console.warn('Supabase insert after fallback returned error or no data, falling back to local response:', insertErr);
-        } catch (e) {
-          console.warn('Supabase insert after fallback failed, returning local resource:', e.message || e);
-        }
-      }
-      return res.status(201).json({ ok: true, documento: { descricao, url, tipo: ext.replace('.', '') } });
-    }
-
-    const publicUrl = supaAdmin.storage.from(bucket).getPublicUrl(uploadData.path).publicURL;
-    const { data: inserted, error: insertErr } = await supaAdmin.from('indicador_documentos').insert({ descricao, url: publicUrl, storage_path: uploadData.path, tipo: ext.replace('.', '') });
-    if (insertErr) throw insertErr;
-
-    return res.status(201).json({ ok: true, documento: inserted[0] });
-  } catch (error) {
-    console.error('Erro POST /api/indicadores/documentos:', error.message || error);
-    return res.status(500).json({ ok: false, error: 'Erro interno ao enviar documento.' });
-  }
-});
-
-// DELETE /api/indicadores/documentos/:id -> delete document (admin)
-app.delete('/api/indicadores/documentos/:id', authenticateUser, requireAdmin, async (req, res) => {
-  try {
-    const id = req.params.id;
-    const { enabled, admin } = getSupabaseClients();
-    if (!enabled || !admin) return res.status(500).json({ ok: false, error: 'Supabase não configurado.' });
-
-    const { data: doc } = await admin.from('indicador_documentos').select('*').eq('id', id).maybeSingle();
-    if (!doc) return res.status(404).json({ ok: false, error: 'Documento não encontrado.' });
-
-    // remove from storage if storage_path exists
-    if (doc.storage_path) {
-      const bucket = process.env.SUPABASE_STORAGE_BUCKET || 'public';
-      await admin.storage.from(bucket).remove([doc.storage_path]);
-    }
-
-    const { error } = await admin.from('indicador_documentos').delete().eq('id', id);
-    if (error) throw error;
-
-    return res.status(200).json({ ok: true });
-  } catch (error) {
-    console.error('Erro DELETE /api/indicadores/documentos/:id', error.message || error);
-    return res.status(500).json({ ok: false, error: 'Erro ao excluir documento.' });
-  }
-});
-
-// POST imagens
-app.post('/api/indicadores/imagens', authenticateUser, requireAdmin, upload.single('image'), async (req, res) => {
-  try {
-    const file = req.file;
-    if (!file) return res.status(400).json({ ok: false, error: 'Imagem é obrigatória.' });
-
-    const allowed = ['.png', '.jpg', '.jpeg', '.webp'];
-    const ext = path.extname(file.originalname).toLowerCase();
-    if (!allowed.includes(ext)) { fs.unlinkSync(file.path); return res.status(400).json({ ok: false, error: 'Formato de imagem não permitido.' }); }
-
-    const { enabled, admin } = getSupabaseClients();
-    if (FORCE_LOCAL_STORAGE || !enabled || !admin) {
-      const uploadsDir = path.join(__dirname, '..', 'uploads');
-      if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
-      const dest = path.join(uploadsDir, `${Date.now()}_${file.originalname}`);
-      fs.renameSync(file.path, dest);
-      const url = `/uploads/${path.basename(dest)}`;
-      if (admin) {
-        try {
-          const { data, error } = await admin.from('indicador_imagens').insert({ url, storage_path: dest });
-          if (!error && data && data[0]) return res.status(201).json({ ok: true, imagem: data[0] });
-          console.warn('Admin insert image returned error or no data, falling back to local response:', error);
-        } catch (e) {
-          console.warn('Admin insert image failed, returning local resource:', e.message || e);
-        }
-      }
-      return res.status(201).json({ ok: true, imagem: { url } });
-    }
-
-    // Supabase storage
-    const { admin: supaAdmin } = getSupabaseClients();
-    const bucket = process.env.SUPABASE_STORAGE_BUCKET || 'public';
-    const storagePath = `indicadores/imagens/${Date.now()}_${file.originalname}`;
-    const fileBuffer = fs.readFileSync(file.path);
-    const { data: uploadData, error: uploadErr } = await supaAdmin.storage.from(bucket).upload(storagePath, fileBuffer, { upsert: false, contentType: file.mimetype });
-    fs.unlinkSync(file.path);
-
-    if (uploadErr) {
-      console.warn('Supabase image upload failed, falling back to local storage:', uploadErr.message || uploadErr);
-      const uploadsDir = path.join(__dirname, '..', 'uploads');
-      if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
-      const dest = path.join(uploadsDir, `${Date.now()}_${file.originalname}`);
-      fs.writeFileSync(dest, fileBuffer);
-      const url = `/uploads/${path.basename(dest)}`;
-      if (supaAdmin) {
-        try {
-          const { data: inserted, error: insertErr } = await supaAdmin.from('indicador_imagens').insert({ url, storage_path: dest });
-          if (!insertErr && inserted && inserted[0]) return res.status(201).json({ ok: true, imagem: inserted[0] });
-          console.warn('Supabase insert image after fallback returned error or no data, falling back to local response:', insertErr);
-        } catch (e) {
-          console.warn('Supabase insert image after fallback failed, returning local resource:', e.message || e);
-        }
-      }
-      return res.status(201).json({ ok: true, imagem: { url } });
-    }
-
-    const publicUrl = supaAdmin.storage.from(bucket).getPublicUrl(uploadData.path).publicURL;
-    const { data: inserted, error: insertErr } = await supaAdmin.from('indicador_imagens').insert({ url: publicUrl, storage_path: uploadData.path });
-    if (insertErr) throw insertErr;
-    return res.status(201).json({ ok: true, imagem: inserted[0] });
-  } catch (error) {
-    console.error('Erro POST /api/indicadores/imagens', error.message || error);
-    return res.status(500).json({ ok: false, error: 'Erro ao enviar imagem.' });
-  }
-});
-
-// DELETE imagem
-app.delete('/api/indicadores/imagens/:id', authenticateUser, requireAdmin, async (req, res) => {
-  try {
-    const id = req.params.id;
-    const { enabled, admin } = getSupabaseClients();
-    if (!enabled || !admin) return res.status(500).json({ ok: false, error: 'Supabase não configurado.' });
-
-    const { data: img } = await admin.from('indicador_imagens').select('*').eq('id', id).maybeSingle();
-    if (!img) return res.status(404).json({ ok: false, error: 'Imagem não encontrada.' });
-
-    if (img.storage_path) {
-      const bucket = process.env.SUPABASE_STORAGE_BUCKET || 'public';
-      await admin.storage.from(bucket).remove([img.storage_path]);
-    }
-
-    const { error } = await admin.from('indicador_imagens').delete().eq('id', id);
-    if (error) throw error;
-
-    return res.status(200).json({ ok: true });
-  } catch (error) {
-    console.error('Erro DELETE /api/indicadores/imagens/:id', error.message || error);
-    return res.status(500).json({ ok: false, error: 'Erro ao excluir imagem.' });
-  }
-});
-
-if (require.main === module) {
+// Inicialização do servidor (apenas fora de ambiente serverless)
+if (process.env.NODE_ENV !== 'production') {
   app.listen(port, () => {
-    console.log(`Servidor rodando localmente em http://localhost:${port}`);
+    console.log(`Servidor rodando na porta ${port}`);
   });
 }
 
