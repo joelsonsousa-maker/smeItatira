@@ -1,0 +1,258 @@
+// Centralized chat logic: auth, message list, SSE, send
+(function () {
+  const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:3000' : '';
+
+  const root = document.getElementById('chat-root');
+  let me = null;
+  let messages = [];
+  let selectedConversation = null;
+
+  function ensureAuth(token) {
+    if (!token) { window.location.href = 'login.html'; return false; }
+    return true;
+  }
+
+  async function loadMessages(conversationId) {
+    const token = window.SMEAuth.readToken();
+    const url = conversationId && me?.role === 'admin' ? `${API_BASE}/api/messages?conversationId=${encodeURIComponent(conversationId)}` : `${API_BASE}/api/messages`;
+    const resp = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    if (!resp.ok) return [];
+    const data = await resp.json();
+    messages = data || [];
+    render();
+  }
+
+  async function sendMessage(text) {
+    if (!text) return;
+    // obter token do helper ou dos storages (compatibilidade)
+    const token = window.SMEAuth?.readToken() || localStorage.getItem('token') || localStorage.getItem('sme_session_token') || sessionStorage.getItem('token');
+    if (!token) {
+      alert('Sessão expirada. Faça login para enviar mensagens.');
+      return window.location.href = 'login.html';
+    }
+
+    const payload = { text };
+    if (me.role === 'admin') {
+      payload.conversationId = selectedConversation;
+      // if admin knows the target user id, include it
+      const first = messages.find(m => m.conversation_id === selectedConversation);
+      if (first && first.user_id) payload.userId = first.user_id;
+    }
+
+    // Optimistic UI: append local message immediately
+    const localMsg = {
+      id: `local-${Date.now()}`,
+      user_id: payload.userId || payload.user_id || (me.role === 'admin' ? null : me.id),
+      user_name: me.name || me.email || (me.id || 'Você'),
+      conversation_id: payload.conversationId || (me.email || me.id),
+      content: payload.text,
+      created_at: new Date().toISOString(),
+      sent_by_admin: (me.role === 'admin')
+    };
+    messages.push(localMsg);
+    render();
+
+    try {
+      const resp = await fetch(`${API_BASE}/api/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(payload)
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        alert('Erro ao enviar mensagem: ' + (err.error || resp.statusText));
+        // reload authoritative messages
+        return loadMessages(selectedConversation);
+      }
+      // on success, refresh to get server-assigned id/timestamps
+      await loadMessages(selectedConversation);
+    } catch (err) {
+      alert('Erro de conexão ao enviar mensagem.');
+      return loadMessages(selectedConversation);
+    }
+  }
+
+  function startSSE() {
+    try {
+      const token = window.SMEAuth.readToken();
+      let pollInterval = null;
+      const es = new EventSource(`${API_BASE}/api/messages/stream?token=${encodeURIComponent(token)}`);
+
+      es.onopen = () => {
+        if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+        console.debug('SSE connected');
+      };
+
+      es.onerror = (err) => {
+        console.warn('SSE error, falling back to polling', err);
+        if (!pollInterval) {
+          pollInterval = setInterval(() => { loadMessages(selectedConversation); }, 2500);
+        }
+      };
+
+      es.onmessage = (evt) => {
+        try {
+          const parsed = JSON.parse(evt.data);
+          if (parsed && parsed.type === 'message' && parsed.message) {
+            // Upsert message into local cache and render if relevant
+            const incoming = parsed.message;
+            upsertMessage(normalizeIncoming(incoming));
+            // If the incoming message belongs to current conversation or admin overview, refresh view
+            if (!me) return;
+            const myConv = me.email || me.id;
+            if (me.role === 'admin') {
+              render();
+            } else {
+              if (incoming.conversation_id === myConv) render();
+            }
+          }
+        } catch (e) { console.warn('Malformed SSE message', e); }
+      };
+    } catch (e) {
+      // ignore SSE if not available
+      console.warn('SSE not available', e);
+      // fallback polling
+      setInterval(() => { loadMessages(selectedConversation); }, 2500);
+    }
+  }
+
+  function normalizeIncoming(incoming) {
+    // incoming shape may use legacy keys; normalize to our front-end shape
+    return {
+      id: incoming.id || incoming.usuario_id || incoming.user_id || (`srv-${Date.now()}`),
+      user_id: incoming.user_id || incoming.usuario_id || null,
+      user_name: incoming.user_name || incoming.usuario_nome || incoming.user || 'Usuário',
+      conversation_id: incoming.conversation_id || incoming.conversa_id || '',
+      content: incoming.content || incoming.texto || incoming.text || '',
+      created_at: incoming.created_at || incoming.criado_em || new Date().toISOString(),
+      sent_by_admin: typeof incoming.sent_by_admin !== 'undefined' ? incoming.sent_by_admin : /admin|administrador/i.test(String(incoming.user_name || incoming.usuario_nome || ''))
+    };
+  }
+
+  function upsertMessage(msg) {
+    const idx = messages.findIndex(m => m.id === msg.id);
+    if (idx >= 0) messages[idx] = msg;
+    else messages.push(msg);
+  }
+
+  function buildLayout() {
+    if (!root) return;
+    root.innerHTML = `
+      <div class="chat-toolbar">
+        <div class="chat-title">Chat SME</div>
+        <div class="chat-note" id="chat-note"></div>
+      </div>
+      <div class="chat-panel">
+        <div class="chat-panel-left" id="chat-left"></div>
+        <div class="chat-panel-right" id="chat-right"></div>
+      </div>
+    `;
+  }
+
+  function render() {
+    buildLayout();
+    document.getElementById('chat-note').textContent = me.role === 'admin' ? 'Painel admin — selecione uma conversa.' : 'Converse com a SME.';
+
+    const left = document.getElementById('chat-left');
+    const right = document.getElementById('chat-right');
+
+    // ensure messages are strictly ordered by created_at asc
+    const sortedMessages = (messages || []).slice().sort((a, b) => {
+      const ta = Date.parse(a.created_at || a.criado_em || 0) || 0;
+      const tb = Date.parse(b.created_at || b.criado_em || 0) || 0;
+      return ta - tb;
+    });
+
+    // build conversations list (unique conversation_id)
+    const convMap = new Map();
+    sortedMessages.forEach((m) => {
+      if (!convMap.has(m.conversation_id)) convMap.set(m.conversation_id, { id: m.conversation_id, last: m });
+      else convMap.set(m.conversation_id, { id: m.conversation_id, last: m });
+    });
+
+    if (me.role === 'admin') {
+      const list = document.createElement('div');
+      list.className = 'chat-list';
+      if (convMap.size === 0) {
+        list.innerHTML = '<div class="chat-empty">Nenhuma conversa ainda.</div>';
+      } else {
+        Array.from(convMap.values()).forEach((c) => {
+          const btn = document.createElement('div');
+          btn.className = 'chat-card-user' + (selectedConversation === c.id ? ' active' : '');
+          btn.textContent = c.id;
+          btn.addEventListener('click', () => { selectedConversation = c.id; loadMessages(selectedConversation); });
+          list.appendChild(btn);
+        });
+      }
+      left.innerHTML = '<div class="chat-user-info"><strong>Conversas</strong></div>';
+      left.appendChild(list);
+
+      // right side: conversation view
+      if (!selectedConversation) {
+        right.innerHTML = '<div class="chat-empty">Selecione uma conversa à esquerda.</div>';
+      } else {
+        const convMsgs = sortedMessages.filter(m => m.conversation_id === selectedConversation);
+        const header = document.createElement('div'); header.className = 'chat-user-info'; header.innerHTML = `<strong>Conversa: </strong>${selectedConversation}`;
+        const listContainer = document.createElement('div'); listContainer.className = 'chat-list';
+        convMsgs.forEach((m) => {
+          const bubble = document.createElement('div');
+          const isSent = isMessageFromCurrentUser(m);
+          bubble.className = 'chat-message ' + (isSent ? 'sent' : 'received');
+          bubble.innerHTML = `<div class="meta">${m.user_name || 'Usuário'} • ${new Date(m.created_at).toLocaleString()}</div><div>${m.content}</div>`;
+          listContainer.appendChild(bubble);
+        });
+        const form = document.createElement('div'); form.className = 'chat-form';
+        const ta = document.createElement('textarea'); ta.placeholder = 'Escreva sua resposta...';
+        const btn = document.createElement('button'); btn.textContent = 'Enviar'; btn.className = 'chat-action';
+        btn.addEventListener('click', async () => { btn.disabled = true; await sendMessage(ta.value.trim()); ta.value = ''; btn.disabled = false; });
+        form.appendChild(ta); form.appendChild(btn);
+        right.innerHTML = ''; right.appendChild(header); right.appendChild(listContainer); right.appendChild(form);
+      }
+    } else {
+      // user view
+      const myConv = me.email || me.id;
+      const convMsgs = sortedMessages.filter(m => m.conversation_id === myConv);
+      const listContainer = document.createElement('div'); listContainer.className = 'chat-list';
+      if (convMsgs.length === 0) listContainer.innerHTML = '<div class="chat-empty">Nenhuma mensagem ainda.</div>';
+      else convMsgs.forEach((m) => {
+        const bubble = document.createElement('div');
+        const isSent = isMessageFromCurrentUser(m);
+        bubble.className = 'chat-message ' + (isSent ? 'sent' : 'received');
+        bubble.innerHTML = `<div class="meta">${m.user_name || 'Usuário'} • ${new Date(m.created_at).toLocaleString()}</div><div>${m.content}</div>`;
+        listContainer.appendChild(bubble);
+      });
+
+      left.innerHTML = '';
+      right.innerHTML = '';
+      right.appendChild(listContainer);
+      const form = document.createElement('div'); form.className = 'chat-form';
+      const ta = document.createElement('textarea'); ta.placeholder = 'Escreva sua mensagem para a SME...';
+      const btn = document.createElement('button'); btn.textContent = 'Enviar'; btn.className = 'chat-action';
+      btn.addEventListener('click', async () => { btn.disabled = true; await sendMessage(ta.value.trim()); ta.value = ''; btn.disabled = false; });
+      form.appendChild(ta); form.appendChild(btn);
+      right.appendChild(form);
+    }
+  }
+
+  async function start() {
+    const token = window.SMEAuth.readToken();
+    if (!ensureAuth(token)) return;
+    me = await window.SMEAuth.fetchMe(token);
+    if (!me) { window.SMEAuth.clearToken(); return window.location.href = 'login.html'; }
+    await loadMessages();
+    startSSE();
+  }
+
+  function isMessageFromCurrentUser(m) {
+    if (!me || !m) return false;
+    // If the message was sent by an admin (sent_by_admin === true):
+    // - it's sent by the current user only if the current user is an admin
+    if (m.sent_by_admin) {
+      return me.role === 'admin';
+    }
+    // If not sent by admin, it's a user message: compare user_id to current user id
+    return String(m.user_id) === String(me.id);
+  }
+
+  document.addEventListener('DOMContentLoaded', start);
+})();

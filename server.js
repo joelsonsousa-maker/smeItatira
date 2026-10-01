@@ -38,7 +38,18 @@ const {
 } = require('./api/supabase');
 
 const inMemoryMessages = [];
-const messageSseClients = new Set(); // cada item: { res, user }
+const messageSseClients = new Set();
+
+function broadcastChatMessage(message) {
+  const payload = `data: ${JSON.stringify({ type: 'message', message })}\n\n`;
+  for (const client of messageSseClients) {
+    try {
+      client.res.write(payload);
+    } catch (error) {
+      messageSseClients.delete(client);
+    }
+  }
+}
 
 // Middlewares de Rate Limit simplificados
 const loginRateLimiter = (req, res, next) => next();
@@ -62,15 +73,16 @@ function createSession(user) {
 }
 
 async function authenticateUser(req, res, next) {
+  // Allow token in Authorization header, query param `token`, or body.token
   const authHeader = req.headers['authorization'] || req.headers['Authorization'];
+  const queryToken = (req.query && req.query.token) ? String(req.query.token) : null;
+  const bodyToken = (req.body && req.body.token) ? String(req.body.token) : null;
 
-  if (!authHeader) {
+  if (!authHeader && !queryToken && !bodyToken) {
     return res.status(401).json({ ok: false, error: 'Token não fornecido.' });
   }
 
-  const token = authHeader.startsWith('Bearer ')
-    ? authHeader.split(' ')[1]
-    : authHeader;
+  const token = queryToken || bodyToken || (authHeader && (authHeader.startsWith('Bearer ') ? authHeader.split(' ')[1] : authHeader));
 
   if (!token) {
     return res.status(401).json({ ok: false, error: 'Formato de token inválido.' });
@@ -79,7 +91,13 @@ async function authenticateUser(req, res, next) {
   // 1. Tenta validar via JWT Local
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
-    req.user = decoded;
+    // ensure basic shape
+    req.user = {
+      id: decoded.id || decoded.sub || null,
+      email: decoded.email || null,
+      name: decoded.name || decoded.email?.split('@')[0] || 'Usuário',
+      role: decoded.role || (decoded.perfil || 'usuario')
+    };
     return next();
   } catch (err) {
     // Se não for token local, avança para o Supabase
@@ -95,15 +113,17 @@ async function authenticateUser(req, res, next) {
         let role = 'usuario';
 
         if (admin) {
-          const { data: profile } = await admin
-            .from('profiles')
-            .select('perfil, nome')
-            .eq('id', user.id)
-            .maybeSingle();
-
-          if (profile) {
-            role = profile.perfil || 'usuario';
-            user.user_metadata = { ...user.user_metadata, nome: profile.nome };
+          try {
+            const { data: profile } = await admin
+              .from('profiles')
+              .select('perfil, nome')
+              .eq('id', user.id)
+              .maybeSingle();
+            if (profile) {
+              role = profile.perfil || 'usuario';
+            }
+          } catch (profileErr) {
+            console.error('Erro ao buscar profile no Supabase (profiles):', profileErr);
           }
         }
 
@@ -117,7 +137,7 @@ async function authenticateUser(req, res, next) {
         return next();
       }
     } catch (supabaseErr) {
-      console.error('Erro na validação via Supabase:', supabaseErr.message);
+      console.error('Erro na validação via Supabase:', supabaseErr);
     }
   }
 
@@ -281,19 +301,29 @@ app.get(['/api/messages', '/messages'], authenticateUser, async (req, res) => {
     if (!enabled || !dbClient) {
       const visibleMessages = inMemoryMessages.filter((message) => {
         if (req.user.role === 'admin') return true;
-        return message.conversa_id === (req.user.email || req.user.id);
+        return message.conversation_id === (req.user.email || req.user.id);
       });
-      return res.status(200).json(visibleMessages);
+      return res.status(200).json(visibleMessages.map((message) => ({
+        id: message.id,
+        user_id: message.user_id || message.usuario_id || null,
+        user_name: message.user_name || message.usuario_nome || 'Usuário',
+        conversation_id: message.conversation_id || message.conversa_id || '',
+        content: message.content || message.texto || '',
+        created_at: message.created_at || message.criado_em,
+        sent_by_admin: typeof message.sent_by_admin !== 'undefined' ? message.sent_by_admin : /admin|administrador/i.test(String(message.user_name || ''))
+      })));
     }
 
-    let query = dbClient
-      .from('mensagens')
-      .select('*')
-      .order('criado_em', { ascending: true });
+    // Allow admin to fetch all messages, or optionally filter by conversationId
+    const conversationFilter = (req.query && req.query.conversationId) || null;
+
+    let query = dbClient.from('messages').select('*').order('created_at', { ascending: true });
 
     if (req.user.role !== 'admin') {
-      const myId = req.user.email || req.user.id;
-      query = query.or(`conversation_id.eq.${myId},conversa_id.eq.${myId}`);
+      const myConversation = req.user.email || req.user.id;
+      query = query.eq('conversation_id', myConversation);
+    } else if (conversationFilter) {
+      query = query.eq('conversation_id', String(conversationFilter));
     }
 
     const { data, error } = await query;
@@ -301,12 +331,36 @@ app.get(['/api/messages', '/messages'], authenticateUser, async (req, res) => {
 
     const mappedMessages = (data || []).map((msg) => ({
       id: msg.id,
-      usuario_id: msg.user_id || msg.usuario_id || '',
-      usuario_nome: msg.user_name || msg.usuario_nome || 'Usuário',
-      conversa_id: msg.conversation_id || msg.conversa_id || '',
-      texto: msg.content || msg.texto || '',
-      criado_em: msg.created_at || msg.criado_em
+      user_id: msg.user_id || null,
+      user_name: msg.user_name || 'Usuário',
+      conversation_id: msg.conversation_id || '',
+      content: msg.content || '',
+      created_at: msg.created_at
     }));
+
+    // Attempt to determine whether each message was sent by admin.
+    // Strategy: fetch profiles for involved user_ids and compare stored user_name with profile name.
+    try {
+      const userIds = Array.from(new Set(mappedMessages.map(m => m.user_id).filter(Boolean)));
+      const profileMap = {};
+      if (userIds.length > 0 && admin) {
+        const { data: profiles } = await admin.from('profiles').select('id,nome').in('id', userIds);
+        (profiles || []).forEach(p => { if (p && p.id) profileMap[p.id] = p.nome; });
+      }
+
+      mappedMessages.forEach(m => {
+        const ownerName = profileMap[m.user_id] || null;
+        if (ownerName) {
+          m.sent_by_admin = (m.user_name !== ownerName);
+        } else {
+          // fallback: if username contains 'Admin' or 'Administrador' mark as admin
+          m.sent_by_admin = /admin|administrador/i.test(String(m.user_name || ''));
+        }
+      });
+    } catch (err) {
+      console.error('Erro ao inferir sender dos messages:', err);
+      mappedMessages.forEach(m => { m.sent_by_admin = /admin|administrador/i.test(String(m.user_name || '')); });
+    }
 
     return res.status(200).json(mappedMessages);
   } catch (error) {
@@ -315,52 +369,88 @@ app.get(['/api/messages', '/messages'], authenticateUser, async (req, res) => {
   }
 });
 
-// Endpoint para enviar mensagens
 app.post(['/api/messages', '/messages'], authenticateUser, messageRateLimiter, async (req, res) => {
   try {
-    const text = String(req.body?.text || '').trim();
+    // Accept multiple possible field names from front-end: text, content, message
+    const text = String(req.body?.text || req.body?.content || req.body?.message || '').trim();
 
-    let conversationId;
-    if (req.user.role === 'admin') {
-      conversationId = String(req.body?.conversationId || req.user.email || req.user.id || '').trim();
+    // Determine conversation and user/admin linkage
+    let conversationId = '';
+    let payloadUserId = null;
+    let payloadAdminId = null;
+
+    if (req.user && req.user.role === 'admin') {
+      // Admin must provide target user's conversation id (email or id) or userId
+      conversationId = String(req.body?.conversationId || req.body?.userEmail || req.body?.user_id || req.body?.userId || '').trim();
+      payloadAdminId = req.user.id || null;
+      payloadUserId = req.body?.userId || req.body?.user_id || null;
     } else {
-      conversationId = String(req.user.email || req.user.id || '').trim();
+      conversationId = String(req.user?.email || req.user?.id || '').trim();
+      payloadUserId = req.user?.id || null;
+      payloadAdminId = req.body?.adminId || req.body?.admin_id || null;
     }
 
-    if (!text || !conversationId) {
-      return res.status(400).json({ ok: false, error: 'Texto e conversa são obrigatórios.' });
+    if (!text) {
+      return res.status(400).json({ ok: false, error: 'Texto da mensagem é obrigatório.' });
+    }
+
+    if (!conversationId) {
+      return res.status(400).json({ ok: false, error: 'ID da conversa (conversationId/userId/userEmail) é obrigatório.' });
     }
 
     const { enabled, admin, client } = getSupabaseClients();
     const dbClient = admin || client;
 
     const payload = {
-      usuario_id: req.user.id || 'admin',
-      usuario_nome: req.user.name || (req.user.role === 'admin' ? 'Administrador' : 'Usuário'),
-      conversa_id: conversationId,
-      texto: text,
-      criado_em: new Date().toISOString()
+      // Only use user_id column as requested. For messages sent by admins, user_id must be the target client's id.
+      user_id: payloadUserId,
+      user_name: req.user?.name || (req.user?.role === 'admin' ? 'Administrador' : 'Usuário'),
+      conversation_id: conversationId,
+      content: text,
+      created_at: new Date().toISOString()
     };
 
     if (!enabled || !dbClient) {
       const stored = {
         id: `${Date.now()}`,
-        usuario_id: payload.usuario_id,
-        usuario_nome: payload.usuario_nome,
-        conversa_id: payload.conversa_id,
-        texto: payload.texto,
-        criado_em: payload.criado_em
+        user_id: payload.user_id,
+        user_name: payload.user_name,
+        conversation_id: payload.conversation_id,
+        content: payload.content,
+        created_at: payload.created_at,
+        sent_by_admin: (req.user && req.user.role === 'admin')
       };
       inMemoryMessages.push(stored);
+      broadcastChatMessage(stored);
       return res.status(201).json({ ok: true, message: 'Mensagem enviada com sucesso.' });
     }
 
-    const { data: inserted, error } = await dbClient.from('mensagens').insert(payload).select();
+    const { data: inserted, error } = await dbClient.from('messages').insert(payload).select();
     if (error) throw error;
 
-    return res.status(201).json({ ok: true, message: 'Mensagem enviada com sucesso.' });
+    const savedMessage = (inserted && inserted[0]) || payload;
+    const mappedMessage = {
+      id: savedMessage.id,
+      // normalized fields used by front-end
+      user_id: savedMessage.user_id,
+      user_name: savedMessage.user_name,
+      conversation_id: savedMessage.conversation_id,
+      content: savedMessage.content,
+      created_at: savedMessage.created_at,
+      // legacy keys for backward compatibility
+      usuario_id: savedMessage.user_id,
+      usuario_nome: savedMessage.user_name,
+      conversa_id: savedMessage.conversation_id,
+      texto: savedMessage.content,
+      criado_em: savedMessage.created_at,
+      // mark as sent by admin if current requester is admin
+      sent_by_admin: (req.user && req.user.role === 'admin')
+    };
+
+    broadcastChatMessage(mappedMessage);
+    return res.status(201).json({ ok: true, message: 'Mensagem enviada com sucesso.', data: mappedMessage });
   } catch (error) {
-    console.error('Erro ao enviar mensagem:', error);
+    console.error('Erro ao enviar mensagem:', error && (error.stack || error.message || error));
     return res.status(500).json({ ok: false, error: 'Erro interno ao enviar mensagem.' });
   }
 });
@@ -368,8 +458,9 @@ app.post(['/api/messages', '/messages'], authenticateUser, messageRateLimiter, a
 // Server-Sent Events para mensagens
 app.get(['/api/messages/stream', '/messages/stream'], async (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
   res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
   res.flushHeaders && res.flushHeaders();
 
   const token = (req.query && req.query.token) || (req.headers['authorization'] ? req.headers['authorization'].replace('Bearer ', '') : null);
@@ -386,8 +477,8 @@ app.get(['/api/messages/stream', '/messages/stream'], async (req, res) => {
     const { enabled, client, admin } = getSupabaseClients();
     if (enabled && client) {
       try {
-        const { data: { user: authUser } } = await client.auth.getUser(token);
-        if (authUser) {
+        const { data: { user: authUser }, error } = await client.auth.getUser(token);
+        if (!error && authUser) {
           let role = 'usuario';
           if (admin) {
             const { data: profile } = await admin.from('profiles').select('perfil, nome').eq('id', authUser.id).maybeSingle();

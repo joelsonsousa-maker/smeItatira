@@ -124,6 +124,7 @@
         </div>
     </footer>
     
+        <script src="JS/auth.js"></script>
         <script>
         (function () {
             const loginForm = document.getElementById('login-form');
@@ -216,8 +217,8 @@
                     updateLoginMessage('Autenticando...', 'info');
                     const result = await authenticateUser({ email, password });
 
-                    // Armazena apenas o token de sessão; nunca gravar role no localStorage
-                    try { localStorage.setItem('sme_session_token', result.token); localStorage.setItem('token', result.token); } catch (e) {}
+                    // Armazena apenas o token de sessão via helper central (persistência controlada)
+                    try { window.SMEAuth?.setToken(result.token, { persist: true }); } catch (e) { try { localStorage.setItem('sme_session_token', result.token); localStorage.setItem('token', result.token); } catch (ee) {} }
 
                     // Consulta autoritativa do perfil (roles devem ser validadas no backend via /api/auth/me)
                     const me = await fetchMe(result.token);
