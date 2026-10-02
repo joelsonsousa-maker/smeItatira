@@ -5,6 +5,7 @@
   const root = document.getElementById('chat-root');
   let me = null;
   let messages = [];
+  let _initialized = false; // indicates first full render completed
   let selectedConversation = null;
 
   function ensureAuth(token) {
@@ -18,8 +19,8 @@
     const resp = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
     if (!resp.ok) return [];
     const data = await resp.json();
-    messages = data || [];
-    render();
+    // Update messages cache and update only the messages container when possible
+    updateMessages(data || []);
   }
 
   async function sendMessage(text) {
@@ -50,7 +51,10 @@
       sent_by_admin: (me.role === 'admin')
     };
     messages.push(localMsg);
-    render();
+    // Update only the messages container for the active conversation to avoid touching the input
+    const messagesContainer = document.getElementById('chat-messages');
+    const convMsgs = (messages || []).filter(m => m.conversation_id === (selectedConversation || (me.email || me.id)));
+    renderMessages(convMsgs, messagesContainer);
 
     try {
       const resp = await fetch(`${API_BASE}/api/messages`, {
@@ -70,6 +74,45 @@
       alert('Erro de conexão ao enviar mensagem.');
       return loadMessages(selectedConversation);
     }
+  }
+
+  // Update messages cache and trigger minimal UI update.
+  function updateMessages(incomingArray) {
+    // normalize shapes if needed
+    const normalized = (incomingArray || []).map(normalizeIncoming);
+    // sort by created_at asc
+    normalized.sort((a, b) => (Date.parse(a.created_at||0)||0) - (Date.parse(b.created_at||0)||0));
+
+    if (!_initialized) {
+      // first time: set messages and do full render
+      messages = normalized;
+      _initialized = true;
+      render();
+      return;
+    }
+
+    // subsequent polling: determine if messages for the currently viewed conversation changed
+    const currentConv = selectedConversation || (me && (me.email || me.id));
+    // filter both arrays to the current conversation
+    const oldConvMsgs = (messages || []).filter(m => m.conversation_id === currentConv);
+    const newConvMsgs = normalized.filter(m => m.conversation_id === currentConv);
+
+    // quick check: if same length and same last id, assume no change
+    if (oldConvMsgs.length === newConvMsgs.length) {
+      const lastOld = oldConvMsgs[oldConvMsgs.length - 1];
+      const lastNew = newConvMsgs[newConvMsgs.length - 1];
+      if (String(lastOld?.id) === String(lastNew?.id)) {
+        // no update needed
+        messages = normalized; // keep global messages updated but avoid DOM ops
+        return;
+      }
+    }
+
+    // otherwise update global cache and update only messages container
+    messages = normalized;
+    const messagesContainer = document.getElementById('chat-messages');
+    const convMsgs = newConvMsgs;
+    renderMessages(convMsgs, messagesContainer);
   }
 
   // Replace SSE with a safe polling fallback to avoid EventSource MIME issues.
