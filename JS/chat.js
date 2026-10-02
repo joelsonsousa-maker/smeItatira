@@ -72,47 +72,18 @@
     }
   }
 
-  function startSSE() {
+  // Replace SSE with a safe polling fallback to avoid EventSource MIME issues.
+  let _chatPollInterval = null;
+  function startPolling() {
     try {
-      const token = window.SMEAuth.readToken();
-      let pollInterval = null;
-      const es = new EventSource(`${API_BASE}/api/messages/stream?token=${encodeURIComponent(token)}`);
-
-      es.onopen = () => {
-        if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
-        console.debug('SSE connected');
-      };
-
-      es.onerror = (err) => {
-        console.warn('SSE error, falling back to polling', err);
-        if (!pollInterval) {
-          pollInterval = setInterval(() => { loadMessages(selectedConversation); }, 2500);
-        }
-      };
-
-      es.onmessage = (evt) => {
-        try {
-          const parsed = JSON.parse(evt.data);
-          if (parsed && parsed.type === 'message' && parsed.message) {
-            // Upsert message into local cache and render if relevant
-            const incoming = parsed.message;
-            upsertMessage(normalizeIncoming(incoming));
-            // If the incoming message belongs to current conversation or admin overview, refresh view
-            if (!me) return;
-            const myConv = me.email || me.id;
-            if (me.role === 'admin') {
-              render();
-            } else {
-              if (incoming.conversation_id === myConv) render();
-            }
-          }
-        } catch (e) { console.warn('Malformed SSE message', e); }
-      };
+      if (_chatPollInterval) clearInterval(_chatPollInterval);
+      // immediate load and then periodic polling every 3s
+      loadMessages(selectedConversation).catch((e) => console.warn('Initial load failed', e));
+      _chatPollInterval = setInterval(() => {
+        loadMessages(selectedConversation).catch((e) => console.warn('Polling load failed', e));
+      }, 3000);
     } catch (e) {
-      // ignore SSE if not available
-      console.warn('SSE not available', e);
-      // fallback polling
-      setInterval(() => { loadMessages(selectedConversation); }, 2500);
+      console.warn('Polling setup failed', e);
     }
   }
 
@@ -239,8 +210,10 @@
     if (!ensureAuth(token)) return;
     me = await window.SMEAuth.fetchMe(token);
     if (!me) { window.SMEAuth.clearToken(); return window.location.href = 'login.html'; }
-    await loadMessages();
-    startSSE();
+    // load messages but never let failures block UI rendering
+    try { await loadMessages(); } catch (e) { console.warn('Initial loadMessages failed', e); render(); }
+    // start polling for updates (safe fallback, avoids EventSource MIME issues)
+    startPolling();
   }
 
   function isMessageFromCurrentUser(m) {
